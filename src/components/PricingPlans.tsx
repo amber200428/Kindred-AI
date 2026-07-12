@@ -8,6 +8,7 @@ import {
   type PlanSummary,
 } from '@/lib/plan-catalog';
 import type { PlanId } from '@/lib/types/plans';
+import { UI } from '@/lib/labels';
 
 type Plan = PlanSummary;
 
@@ -149,7 +150,7 @@ export function PricingPlans({
     onCheckoutStart?.();
 
     if (!isSignedIn) {
-      onCheckoutError?.('Please sign in to subscribe.');
+      onCheckoutError?.(UI.AUTH_REQUIRED_FOR_CHECKOUT);
       setLoadingPlan(null);
       window.location.href = `/sign-in?redirect_url=${encodeURIComponent(window.location.href)}`;
       return;
@@ -169,9 +170,7 @@ export function PricingPlans({
       const { url, error } = await response.json();
 
       if (response.status === 401) {
-        throw new Error(
-          'Sign-in session not recognized. Sign out and sign in again. If this persists, add your Vercel URL under Clerk → Configure → Domains.',
-        );
+        throw new Error(UI.AUTH_REQUIRED_FOR_CHECKOUT);
       }
 
       if (!response.ok || !url) {

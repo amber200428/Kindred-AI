@@ -9,6 +9,7 @@ import {
   type PlanId,
 } from '@/lib/plans';
 import { getAppUrl, getStripe } from '@/lib/stripe';
+import { UI } from '@/lib/labels';
 import { getOrCreateUser } from '@/lib/user';
 
 function resolveCheckoutPrice(body: { priceId?: string; plan?: string }) {
@@ -44,10 +45,7 @@ export async function POST(req: Request) {
 
     if (!userId) {
       return NextResponse.json(
-        {
-          error:
-            'Please sign in to subscribe. If you are already signed in, verify CLERK_SECRET_KEY is set for Preview on Vercel and add this site URL in Clerk → Domains.',
-        },
+        { error: UI.AUTH_REQUIRED_FOR_CHECKOUT },
         { status: 401 },
       );
     }

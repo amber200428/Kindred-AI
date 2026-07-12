@@ -25,12 +25,23 @@ function stripeConfigResponse(
 }
 
 export async function GET() {
-  if (!process.env.STRIPE_SECRET_KEY) {
-    console.error('--- STRIPE PLANS ERROR --- STRIPE_SECRET_KEY is not set');
+  const missingEnvVars = getMissingStripeEnvVars();
 
-    return stripeConfigResponse(createUnavailablePlans(), {
-      hint: 'Add STRIPE_SECRET_KEY (sk_live_...) — this is not the same as STRIPE_WEBHOOK_SECRET.',
-    });
+  if (missingEnvVars.length > 0) {
+    console.error(
+      '--- STRIPE PLANS ERROR --- missing env vars:',
+      missingEnvVars.join(', '),
+    );
+
+    return NextResponse.json(
+      {
+        error: 'Stripe not configured',
+        missingEnvVars,
+        plans: createUnavailablePlans(),
+        configured: false,
+      },
+      { status: 404 },
+    );
   }
 
   try {

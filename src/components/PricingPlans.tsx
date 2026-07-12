@@ -88,7 +88,11 @@ export function PricingPlans({
             )
           : [];
 
-        if (missing.length > 0) {
+        if (data.error === 'Stripe not configured' && missing.length > 0) {
+          setPlansError(
+            `Stripe not configured. Missing in Vercel (Preview + Production, then redeploy): ${missing.join(', ')}`,
+          );
+        } else if (missing.length > 0) {
           setPlansError(
             `Missing in Vercel (enable Preview + Production, then redeploy): ${missing.join(', ')}`,
           );

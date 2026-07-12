@@ -22,6 +22,12 @@ export async function POST(req: Request) {
     return new NextResponse('Webhook Error', { status: 400 });
   }
 
+  console.log('--- WEBHOOK RECEIVED ---');
+  console.log('Event Type:', event.type);
+  if (event.type === 'checkout.session.completed') {
+    console.log('Session Metadata:', event.data.object.metadata);
+  }
+
   // Handle successful payments
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as {

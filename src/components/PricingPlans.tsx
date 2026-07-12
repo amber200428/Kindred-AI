@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { PlanId } from '@/lib/types/plans';
 
 type Plan = {
@@ -48,7 +48,15 @@ export function PricingPlans({
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loadingPlan, setLoadingPlan] = useState<PlanId | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [acceptedTrial, setAcceptedTrial] = useState(false);
+  const [isAgreed, setIsAgreed] = useState(false);
+  const [trialHint, setTrialHint] = useState(false);
+  const trialCheckboxRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isAgreed) {
+      setTrialHint(false);
+    }
+  }, [isAgreed]);
 
   useEffect(() => {
     fetch('/api/stripe/plans')
@@ -58,8 +66,16 @@ export function PricingPlans({
       .finally(() => setIsLoading(false));
   }, [onCheckoutError]);
 
-  const handleSelect = async (plan: Plan) => {
-    if (!plan.priceId || !acceptedTrial) return;
+  const handleSubscribe = async (plan: Plan) => {
+    if (!plan.priceId || loadingPlan !== null) return;
+
+    const needsAgreement = plan.id !== 'lifetime';
+    if (needsAgreement && !isAgreed) {
+      setTrialHint(true);
+      trialCheckboxRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      trialCheckboxRef.current?.focus();
+      return;
+    }
 
     setLoadingPlan(plan.id);
     onCheckoutStart?.();
@@ -104,17 +120,30 @@ export function PricingPlans({
           </p>
         </div>
       )}
-      <label className="mb-6 flex cursor-pointer items-start gap-3 rounded-xl border border-zinc-800 bg-zinc-900 px-4 py-3">
+      <label
+        className={`mb-6 flex cursor-pointer items-start gap-3 rounded-xl border px-4 py-3 transition-colors ${
+          trialHint
+            ? 'border-amber-500/80 bg-amber-950/30 ring-2 ring-amber-500/40'
+            : 'border-zinc-800 bg-zinc-900'
+        }`}
+      >
         <input
+          ref={trialCheckboxRef}
           type="checkbox"
-          checked={acceptedTrial}
-          onChange={(e) => setAcceptedTrial(e.target.checked)}
+          checked={isAgreed}
+          onChange={(e) => setIsAgreed(e.target.checked)}
           className="mt-0.5 h-4 w-4 rounded border-zinc-600 bg-zinc-950 text-slate-100 focus:ring-zinc-500"
         />
         <span className="text-sm leading-relaxed text-zinc-300">
-          I agree to the 3-day trial and the subscription terms.
+          I agree to the 3-day trial and the subscription terms.{' '}
+          <span className="text-zinc-500">(Required for Weekly and Monthly)</span>
         </span>
       </label>
+      {trialHint && !isAgreed && (
+        <p className="-mt-4 mb-6 text-center text-sm text-amber-300">
+          Check the agreement box above to enable Subscribe.
+        </p>
+      )}
       <div
         className={`grid gap-4 ${
           compact
@@ -122,7 +151,14 @@ export function PricingPlans({
             : 'grid-cols-1 md:grid-cols-3'
         }`}
       >
-        {plans.map((plan) => (
+        {plans.map((plan) => {
+          const needsAgreement = plan.id !== 'lifetime';
+          const isDisabled =
+            !plan.available ||
+            loadingPlan !== null ||
+            (needsAgreement && !isAgreed);
+
+          return (
           <div
             key={plan.id}
             className={`relative flex flex-col rounded-2xl border-2 p-5 transition-shadow ${
@@ -150,11 +186,11 @@ export function PricingPlans({
             </div>
             <button
               type="button"
-              disabled={!plan.available || !acceptedTrial || loadingPlan !== null}
-              onClick={() => handleSelect(plan)}
-              className={`rounded-lg px-4 py-2.5 text-sm font-medium transition-colors disabled:opacity-60 ${
+              disabled={isDisabled}
+              onClick={() => handleSubscribe(plan)}
+              className={`rounded-lg px-4 py-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                 plan.highlight
-                  ? 'bg-slate-100 text-zinc-950 hover:bg-white'
+                  ? 'bg-slate-100 text-zinc-950 hover:bg-white disabled:bg-zinc-600 disabled:text-zinc-300'
                   : 'border border-zinc-700 bg-zinc-950 text-slate-50 hover:bg-zinc-800'
               }`}
             >
@@ -165,7 +201,8 @@ export function PricingPlans({
                   : 'Subscribe'}
             </button>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

@@ -43,7 +43,13 @@ export async function POST(req: Request) {
     const { userId } = await auth();
 
     if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json(
+        {
+          error:
+            'Please sign in to subscribe. If you are already signed in, verify CLERK_SECRET_KEY is set for Preview on Vercel and add this site URL in Clerk → Domains.',
+        },
+        { status: 401 },
+      );
     }
 
     const body = await req.json().catch(() => ({}));

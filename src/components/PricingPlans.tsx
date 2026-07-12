@@ -1,5 +1,6 @@
 'use client';
 
+import { useAuth } from '@clerk/nextjs';
 import { useEffect, useRef, useState } from 'react';
 import {
   PLAN_IDS,
@@ -49,6 +50,7 @@ export function PricingPlans({
   onCheckoutStart,
   onCheckoutError,
 }: PricingPlansProps) {
+  const { isSignedIn, getToken } = useAuth();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loadingPlan, setLoadingPlan] = useState<PlanId | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -146,12 +148,31 @@ export function PricingPlans({
     setLoadingPlan(plan.id);
     onCheckoutStart?.();
 
+    if (!isSignedIn) {
+      onCheckoutError?.('Please sign in to subscribe.');
+      setLoadingPlan(null);
+      window.location.href = `/sign-in?redirect_url=${encodeURIComponent(window.location.href)}`;
+      return;
+    }
+
     try {
+      const token = await getToken();
       const response = await fetch('/api/checkout', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: 'include',
         body: JSON.stringify({ priceId: plan.priceId }),
       });
       const { url, error } = await response.json();
+
+      if (response.status === 401) {
+        throw new Error(
+          'Sign-in session not recognized. Sign out and sign in again. If this persists, add your Vercel URL under Clerk → Configure → Domains.',
+        );
+      }
 
       if (!response.ok || !url) {
         throw new Error(error ?? 'Unable to start checkout');

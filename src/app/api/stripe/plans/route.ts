@@ -5,17 +5,31 @@ import {
   PLAN_IDS,
   PLAN_LABELS,
   createUnavailablePlans,
+  getMissingStripeEnvVars,
   getPriceIdForPlan,
 } from '@/lib/plans';
 import { getStripe } from '@/lib/stripe';
+
+function stripeConfigResponse(
+  plans: ReturnType<typeof createUnavailablePlans>,
+  extra: Record<string, unknown> = {},
+) {
+  const missingEnvVars = getMissingStripeEnvVars();
+
+  return NextResponse.json({
+    plans,
+    configured: missingEnvVars.length === 0,
+    missingEnvVars,
+    ...extra,
+  });
+}
 
 export async function GET() {
   if (!process.env.STRIPE_SECRET_KEY) {
     console.error('--- STRIPE PLANS ERROR --- STRIPE_SECRET_KEY is not set');
 
-    return NextResponse.json({
-      plans: createUnavailablePlans(),
-      configured: false,
+    return stripeConfigResponse(createUnavailablePlans(), {
+      hint: 'Add STRIPE_SECRET_KEY (sk_live_...) — this is not the same as STRIPE_WEBHOOK_SECRET.',
     });
   }
 
@@ -68,13 +82,15 @@ export async function GET() {
       }),
     );
 
-    return NextResponse.json({ plans, configured: true });
+    return NextResponse.json({
+      plans,
+      configured: getMissingStripeEnvVars().length === 0 && plans.some((p) => p.available),
+      missingEnvVars: getMissingStripeEnvVars(),
+    });
   } catch (error) {
     console.error('--- STRIPE PLANS ERROR ---', error);
 
-    return NextResponse.json({
-      plans: createUnavailablePlans(),
-      configured: false,
+    return stripeConfigResponse(createUnavailablePlans(), {
       error: 'Unable to load live pricing from Stripe.',
     });
   }

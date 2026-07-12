@@ -72,15 +72,34 @@ export function PricingPlans({
           throw new Error('Unable to load pricing plans.');
         }
 
-        const loadedPlans = Array.isArray(data.plans) ? data.plans : [];
+        const loadedPlans = Array.isArray(data.plans)
+          ? (data.plans as Plan[])
+          : [];
 
         if (!res.ok && loadedPlans.length === 0) {
           throw new Error(data.error ?? 'Unable to load pricing plans.');
         }
 
         setPlans(mergePlans(loadedPlans));
-        if (data.error && typeof data.error === 'string') {
+
+        const missing = Array.isArray(data.missingEnvVars)
+          ? data.missingEnvVars.filter(
+              (key: unknown): key is string => typeof key === 'string',
+            )
+          : [];
+
+        if (missing.length > 0) {
+          setPlansError(
+            `Missing in Vercel (enable Preview + Production, then redeploy): ${missing.join(', ')}`,
+          );
+        } else if (data.hint && typeof data.hint === 'string') {
+          setPlansError(data.hint);
+        } else if (data.error && typeof data.error === 'string') {
           setPlansError(data.error);
+        } else if (!loadedPlans.some((plan) => plan.available)) {
+          setPlansError(
+            'Stripe could not load prices. Use live price IDs (price_...) with a live secret key (sk_live_...), then redeploy.',
+          );
         }
       })
       .catch((error) => {

@@ -17,6 +17,11 @@ const PLAN_ENV_KEYS: Record<PlanId, string> = {
   lifetime: 'STRIPE_LIFETIME_PRICE_ID',
 };
 
+export const REQUIRED_STRIPE_ENV_KEYS = [
+  'STRIPE_SECRET_KEY',
+  ...PLAN_IDS.map((planId) => PLAN_ENV_KEYS[planId]),
+] as const;
+
 const PLAN_ENV_FALLBACKS: Partial<Record<PlanId, string[]>> = {
   monthly: ['STRIPE_PRICE_ID'],
 };
@@ -32,6 +37,23 @@ export function getPriceIdForPlan(plan: PlanId): string | undefined {
   }
 
   return undefined;
+}
+
+export function getMissingStripeEnvVars(): string[] {
+  const missing: string[] = [];
+
+  if (!process.env.STRIPE_SECRET_KEY) {
+    missing.push('STRIPE_SECRET_KEY');
+  }
+
+  for (const planId of PLAN_IDS) {
+    const key = PLAN_ENV_KEYS[planId];
+    if (!getPriceIdForPlan(planId)) {
+      missing.push(key);
+    }
+  }
+
+  return missing;
 }
 
 export function isValidPlan(plan: string): plan is PlanId {

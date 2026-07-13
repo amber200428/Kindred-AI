@@ -32,6 +32,13 @@ export function Sidebar({ onNewEntry }: SidebarProps) {
         return;
       }
 
+      if (response.error === UI.HISTORY_SAVE_UNAVAILABLE) {
+        onNewEntry?.();
+        router.push('/');
+        router.refresh();
+        return;
+      }
+
       if (
         response.error === UI.AUTH_REQUIRED_TO_START ||
         response.error === 'User not authenticated'

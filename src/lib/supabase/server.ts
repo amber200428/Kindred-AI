@@ -1,12 +1,15 @@
 import 'server-only';
 
 import { createClient } from '@supabase/supabase-js';
+import {
+  getSupabaseEnvStatus,
+  getSupabaseServerKey,
+  getSupabaseUrl,
+} from '@/lib/supabase/env';
 
 export function createServerSupabaseClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const key = serviceRoleKey ?? anonKey;
+  const supabaseUrl = getSupabaseUrl();
+  const key = getSupabaseServerKey();
 
   if (!supabaseUrl || !key) {
     throw new Error('SUPABASE_NOT_CONFIGURED');
@@ -18,6 +21,10 @@ export function createServerSupabaseClient() {
 }
 
 export function tryCreateServerSupabaseClient() {
+  if (!getSupabaseEnvStatus().ready) {
+    return null;
+  }
+
   try {
     return createServerSupabaseClient();
   } catch {

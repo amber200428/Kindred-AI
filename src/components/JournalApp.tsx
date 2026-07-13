@@ -296,16 +296,15 @@ export function JournalApp({
           return;
         }
 
-        const storageUnavailable =
-          response.error.includes('Missing Supabase') ||
-          response.error.includes('Database is not configured');
-
-        if (storageUnavailable) {
+        if (response.error === UI.HISTORY_SAVE_UNAVAILABLE) {
           setInput('');
           await sendMessage({ text });
-          setSystemNotice(
-            'Your guide can still respond, but chat history is unavailable until Supabase is configured.',
-          );
+          return;
+        }
+
+        if (!chatIdProp) {
+          setInput('');
+          await sendMessage({ text });
           return;
         }
 

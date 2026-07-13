@@ -9,14 +9,20 @@ export function createServerSupabaseClient() {
   const key = serviceRoleKey ?? anonKey;
 
   if (!supabaseUrl || !key) {
-    throw new Error(
-      'Missing Supabase env vars. Set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY (or anon key).',
-    );
+    throw new Error('SUPABASE_NOT_CONFIGURED');
   }
 
   return createClient(supabaseUrl, key, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
+}
+
+export function tryCreateServerSupabaseClient() {
+  try {
+    return createServerSupabaseClient();
+  } catch {
+    return null;
+  }
 }
 
 export { createServerSupabaseClient as createClient };

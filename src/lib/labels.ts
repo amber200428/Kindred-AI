@@ -9,4 +9,6 @@ export const UI = {
     'Please create an account or sign in to subscribe.',
   AUTH_REQUIRED_TO_START:
     'Create a free account or sign in to capture this moment and chat with your guide.',
+  HISTORY_SAVE_UNAVAILABLE:
+    'We could not save this to your history right now, but you can keep chatting here.',
 };

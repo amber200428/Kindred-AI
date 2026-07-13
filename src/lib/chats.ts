@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { tryCreateServerSupabaseClient } from '@/lib/supabase/server';
 import type { ChatHistoryItem } from '@/lib/types/chats';
 
 export type { ChatHistoryItem } from '@/lib/types/chats';
@@ -13,7 +13,10 @@ type ChatListRow = {
 export async function getChatsForUser(
   clerkUserId: string,
 ): Promise<ChatHistoryItem[]> {
-  const supabase = createServerSupabaseClient();
+  const supabase = tryCreateServerSupabaseClient();
+  if (!supabase) {
+    return [];
+  }
 
   const { data, error } = await supabase
     .from('chats')
@@ -33,7 +36,10 @@ export async function getChatsForUser(
 }
 
 export async function getChatForUser(chatId: string, clerkUserId: string) {
-  const supabase = createServerSupabaseClient();
+  const supabase = tryCreateServerSupabaseClient();
+  if (!supabase) {
+    return null;
+  }
 
   const { data, error } = await supabase
     .from('chats')

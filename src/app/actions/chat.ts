@@ -1,7 +1,7 @@
 'use server';
 
 import { auth } from '@clerk/nextjs/server';
-import { createClient } from '@/lib/supabase/server';
+import { tryCreateServerSupabaseClient } from '@/lib/supabase/server';
 import { UI } from '@/lib/labels';
 
 export type SaveReflectionResult =
@@ -26,14 +26,10 @@ export async function saveReflection(
     return { success: false, error: 'Content is required' };
   }
 
-  let supabase;
-  try {
-    supabase = createClient();
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : 'Database is not configured.';
-    console.error('Supabase init error:', error);
-    return { success: false, error: message };
+  let supabase = tryCreateServerSupabaseClient();
+  if (!supabase) {
+    console.error('Supabase is not configured for chat history.');
+    return { success: false, error: UI.HISTORY_SAVE_UNAVAILABLE };
   }
 
   if (chatId) {
@@ -121,7 +117,10 @@ export async function createNewChat(): Promise<SaveReflectionResult> {
     return { success: false, error: UI.AUTH_REQUIRED_TO_START };
   }
 
-  const supabase = createClient();
+  const supabase = tryCreateServerSupabaseClient();
+  if (!supabase) {
+    return { success: false, error: UI.HISTORY_SAVE_UNAVAILABLE };
+  }
 
   const { data, error } = await supabase
     .from('chats')

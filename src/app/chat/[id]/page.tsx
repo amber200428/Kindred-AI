@@ -1,7 +1,7 @@
 import { Suspense } from 'react';
 import { auth } from '@clerk/nextjs/server';
 import { notFound, redirect } from 'next/navigation';
-import { JournalApp } from '@/components/JournalApp';
+import { JournalAppClient } from '@/components/JournalAppClient';
 import { getChatForUser, getChatsForUser } from '@/lib/chats';
 import { getMoodDataForCurrentUser } from '@/lib/mood';
 
@@ -29,7 +29,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
 
   return (
     <Suspense fallback={<div className="min-h-screen bg-zinc-950" />}>
-      <JournalApp
+      <JournalAppClient
         chatId={id}
         chatTitle={chat.title}
         initialMoodData={initialMoodData}

@@ -1,10 +1,14 @@
 'use client';
 
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useChat } from '@ai-sdk/react';
 import type { ChatTransport, UIMessage } from 'ai';
 import { PricingPlans } from '@/components/PricingPlans';
+import {
+  FinancialCategoryPanel,
+  useFinancialDisclaimer,
+} from '@/components/FinancialCategoryPanel';
 import { saveReflection } from '@/app/actions/chat';
 import { ChatBox } from '@/components/ChatBox';
 import { ChatLayout } from '@/components/ChatLayout';
@@ -44,7 +48,11 @@ export function JournalApp({
     () => chatIdProp ?? generateId(),
   );
   const chatIdRef = useRef(chatId);
+  const financialChatIdRef = useRef<string | undefined>(undefined);
   const [moodData, setMoodData] = useState<MoodDataPoint[]>(initialMoodData);
+  const { disclaimerAccepted: financialDisclaimerAccepted, setDisclaimer } =
+    useFinancialDisclaimer();
+  const isFinancialPersona = activePersona === 'financial';
 
   useEffect(() => {
     chatIdRef.current = chatId;
@@ -86,6 +94,25 @@ export function JournalApp({
   const [chatTransport, setChatTransport] =
     useState<ChatTransport<UIMessage> | null>(null);
 
+  const { messages, sendMessage, setMessages } = useChat({
+    transport: chatTransport ?? undefined,
+    onError: (error) => {
+      if (error.message === RATE_LIMIT_MESSAGE) {
+        setSystemNotice(RATE_LIMIT_MESSAGE);
+      } else if (error.message === LIMIT_REACHED_MESSAGE) {
+        setSystemNotice(LIMIT_REACHED_MESSAGE);
+        setShowPricing(true);
+      }
+    },
+  });
+
+  useEffect(() => {
+    if (searchParams.get('persona') === 'financial') {
+      setActivePersona('financial');
+      setMessages([]);
+    }
+  }, [searchParams, setMessages]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -95,21 +122,31 @@ export function JournalApp({
 
       setChatTransport(
         new DefaultChatTransport({
+          api: '/api/chat',
           body: { personaId: activePersona, isPrivate, chatId },
           fetch: async (input, init) => {
             const initBody =
               typeof init?.body === 'string' && init.body
                 ? JSON.parse(init.body)
                 : {};
+            const sessionChatId =
+              activePersona === 'financial'
+                ? financialChatIdRef.current
+                : chatIdRef.current;
             const res = await fetch(input, {
               ...init,
               body: JSON.stringify({
                 ...initBody,
                 personaId: activePersona,
                 isPrivate,
-                chatId: chatIdRef.current,
+                chatId: sessionChatId,
               }),
             });
+
+            const financialHeader = res.headers.get('X-Financial-Chat-Id');
+            if (financialHeader) {
+              financialChatIdRef.current = financialHeader;
+            }
 
             if (res.status === 403) {
               const data = (await res
@@ -122,7 +159,7 @@ export function JournalApp({
               return res;
             }
 
-            if (res.ok) {
+            if (res.ok && activePersona !== 'financial') {
               loadMoodData();
             }
 
@@ -138,18 +175,6 @@ export function JournalApp({
       cancelled = true;
     };
   }, [activePersona, isPrivate, chatId]);
-
-  const { messages, sendMessage, setMessages } = useChat({
-    transport: chatTransport ?? undefined,
-    onError: (error) => {
-      if (error.message === RATE_LIMIT_MESSAGE) {
-        setSystemNotice(RATE_LIMIT_MESSAGE);
-      } else if (error.message === LIMIT_REACHED_MESSAGE) {
-        setSystemNotice(LIMIT_REACHED_MESSAGE);
-        setShowPricing(true);
-      }
-    },
-  });
 
   const personas = [
     {
@@ -224,7 +249,39 @@ export function JournalApp({
       unselected:
         'border-zinc-800 bg-zinc-900/40 text-zinc-300 hover:border-indigo-500/50',
     },
+    {
+      id: 'financial',
+      name: 'Financial Co-Pilot',
+      desc: 'Budgeting frameworks, literacy, and expense planning.',
+      selected:
+        'border-lime-400 bg-lime-500/15 text-white ring-2 ring-lime-400/20 shadow-[0_0_15px_rgba(132,204,22,0.15)] scale-105',
+      unselected:
+        'border-zinc-800 bg-zinc-900/40 text-zinc-300 hover:border-lime-500/50',
+    },
   ];
+
+  const handlePersonaSelect = (personaId: string) => {
+    if (personaId === activePersona) {
+      return;
+    }
+
+    setActivePersona(personaId);
+    setMessages([]);
+    setInput('');
+    setSystemNotice(null);
+
+    if (personaId !== 'financial') {
+      financialChatIdRef.current = undefined;
+    }
+  };
+
+  const handleFinancialQuickStart = (prompt: string) => {
+    if (!financialDisclaimerAccepted) {
+      return;
+    }
+
+    sendMessage({ text: prompt });
+  };
 
   const handleUpgrade = () => {
     setShowPricing(true);
@@ -237,6 +294,16 @@ export function JournalApp({
 
   const handleSave = async () => {
     if (!input.trim()) return;
+
+    if (isFinancialPersona) {
+      if (!financialDisclaimerAccepted) {
+        return;
+      }
+
+      sendMessage({ text: input });
+      setInput('');
+      return;
+    }
 
     const title = input.split('\n')[0].slice(0, 80) || UI.NEW_ENTRY;
     const text = input;
@@ -266,6 +333,7 @@ export function JournalApp({
       onDrawerOpen={loadMoodData}
       onSelectHistory={handleSelectHistory}
       footer={
+        !isFinancialPersona ? (
         <div className="pointer-events-none fixed bottom-0 left-0 right-0 bg-gradient-to-t from-zinc-950 via-zinc-950 to-transparent p-6">
           <div className="pointer-events-auto mx-auto max-w-2xl">
             <label className="flex w-fit cursor-pointer items-center gap-3">
@@ -284,13 +352,17 @@ export function JournalApp({
             </label>
           </div>
         </div>
+        ) : undefined
       }
     >
       <div className="mx-auto w-full max-w-4xl p-6 font-sans">
         <div className="mb-12">
           <div className="mb-6 flex items-center justify-between gap-4">
             <h1 className="text-3xl font-serif text-slate-50 text-center flex-1">
-              {chatTitle ?? 'Choose your guide today'}
+              {chatTitle ??
+                (isFinancialPersona
+                  ? 'Financial Literacy & Planning'
+                  : 'Choose your guide today')}
             </h1>
             <button
               type="button"
@@ -304,18 +376,23 @@ export function JournalApp({
             {personas.map((p) => (
               <button
                 key={p.id}
-                onClick={() => setActivePersona(p.id)}
+                type="button"
+                onClick={() => handlePersonaSelect(p.id)}
                 className={`p-4 rounded-2xl border-2 text-left transition-all duration-200 ${
                   activePersona === p.id ? p.selected : p.unselected
                 }`}
               >
                 <h3
-                  className={`text-base font-semibold ${activePersona === p.id ? 'text-white' : 'text-zinc-300'}`}
+                  className={`text-base font-semibold ${
+                    activePersona === p.id ? 'text-white' : 'text-zinc-300'
+                  }`}
                 >
                   {p.name}
                 </h3>
                 <p
-                  className={`mt-1 text-xs leading-tight ${activePersona === p.id ? 'text-white/90' : 'text-zinc-500'}`}
+                  className={`mt-1 text-xs leading-tight ${
+                    activePersona === p.id ? 'text-white/90' : 'text-zinc-500'
+                  }`}
                 >
                   {p.desc}
                 </p>
@@ -336,10 +413,29 @@ export function JournalApp({
         <form onSubmit={handleSubmit} className="mb-24">
           <ReflectionPage
             chatBox={
-              <ChatBox value={input} onChange={setInput} submitLabel={UI.SAVE} />
+              <ChatBox
+                value={input}
+                onChange={setInput}
+                submitLabel={isFinancialPersona ? 'Send' : UI.SAVE}
+                disabled={isFinancialPersona && !financialDisclaimerAccepted}
+                placeholder={
+                  isFinancialPersona && !financialDisclaimerAccepted
+                    ? 'Accept the disclaimer below to start chatting.'
+                    : undefined
+                }
+              />
             }
           >
             <div className="space-y-6">
+              {isFinancialPersona && (
+                <FinancialCategoryPanel
+                  disclaimerAccepted={financialDisclaimerAccepted}
+                  onDisclaimerChange={setDisclaimer}
+                  onQuickStart={handleFinancialQuickStart}
+                  canSend={financialDisclaimerAccepted}
+                  showWelcome={messages.length === 0}
+                />
+              )}
               {showUpgradeSuccess && (
                 <div className="flex justify-center">
                   <div className="max-w-md rounded-2xl border border-emerald-800 bg-emerald-950/50 px-5 py-4 text-center shadow-sm">
@@ -382,7 +478,9 @@ export function JournalApp({
                   <div
                     className={`inline-block max-w-[85%] rounded-2xl p-4 ${
                       m.role === 'user'
-                        ? 'rounded-br-sm bg-slate-100 text-zinc-950'
+                        ? isFinancialPersona
+                          ? 'rounded-br-sm bg-lime-100 text-zinc-950'
+                          : 'rounded-br-sm bg-slate-100 text-zinc-950'
                         : 'rounded-bl-sm border border-zinc-800 bg-zinc-900 text-slate-200 shadow-sm'
                     }`}
                   >

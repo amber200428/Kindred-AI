@@ -1,10 +1,20 @@
 export const dynamic = 'force-dynamic';
 
 import type { UIMessage } from 'ai';
+import { MessageRole } from '@prisma/client';
 import { auth } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import {
+  createFinancialChat,
+  ensureChatTitleFromFirstMessage,
+  getFinancialChatForUser,
+  getMessagesForChat,
+  saveMessage,
+  toModelMessages,
+} from '@/lib/financial-chat';
 import { generateId } from '@/lib/generate-id';
+import { FINANCIAL_COPILOT_SYSTEM_PROMPT } from '@/lib/prompts/financial-copilot';
 import {
   FREE_DAILY_CHAT_LIMIT,
   getEffectiveChatCount,
@@ -162,6 +172,63 @@ export async function POST(req: Request) {
 
     const { messages, personaId, isPrivate, chatId: sessionChatId } = await req.json();
     const userInput = getLatestUserInput(messages);
+    const isFinancial = personaId === 'financial';
+
+    if (isFinancial) {
+      try {
+        let financialChatId =
+          typeof sessionChatId === 'string' ? sessionChatId : undefined;
+        let chat = financialChatId
+          ? await getFinancialChatForUser(financialChatId, userId)
+          : null;
+
+        if (!chat) {
+          chat = await createFinancialChat(userId);
+          financialChatId = chat.id;
+        }
+
+        if (userInput.trim()) {
+          await saveMessage(chat.id, MessageRole.user, userInput);
+          await ensureChatTitleFromFirstMessage(chat.id, userInput);
+        }
+
+        const history = await getMessagesForChat(chat.id, userId);
+        const modelMessages = toModelMessages(history);
+
+        const result = streamText({
+          model: google('gemini-2.5-flash'),
+          system: FINANCIAL_COPILOT_SYSTEM_PROMPT,
+          messages: modelMessages,
+          onFinish: async ({ text }) => {
+            if (text.trim()) {
+              await saveMessage(chat.id, MessageRole.assistant, text);
+            }
+          },
+        });
+
+        return result.toUIMessageStreamResponse({
+          headers: { 'X-Financial-Chat-Id': chat.id },
+        });
+      } catch (financialError) {
+        console.error('--- FINANCIAL CHAT ERROR ---', financialError);
+        const message =
+          financialError instanceof Error
+            ? financialError.message
+            : String(financialError);
+        const needsMigration =
+          message.includes('does not exist') || message.includes('P2021');
+
+        return NextResponse.json(
+          {
+            error: needsMigration
+              ? 'Financial chat tables are not set up yet. Run npx prisma migrate deploy on your production database.'
+              : 'Financial Co-Pilot is temporarily unavailable.',
+          },
+          { status: needsMigration ? 503 : 500 },
+        );
+      }
+    }
+
     const selectedPrompt =
       systemPrompts[personaId as keyof typeof systemPrompts] || systemPrompts.mentor;
 

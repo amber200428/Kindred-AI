@@ -1,8 +1,10 @@
 import { Suspense } from 'react';
 import { auth } from '@clerk/nextjs/server';
-import { JournalApp } from '@/components/JournalApp';
+import { JournalAppClient } from '@/components/JournalAppClient';
 import { getChatsForUser } from '@/lib/chats';
 import { getMoodDataForCurrentUser } from '@/lib/mood';
+
+export const dynamic = 'force-dynamic';
 
 export default async function Page() {
   const { userId } = await auth();
@@ -20,11 +22,9 @@ export default async function Page() {
   }
 
   return (
-    <Suspense fallback={<div className="min-h-screen bg-zinc-950" />}>
-      <JournalApp
-        initialMoodData={initialMoodData}
-        historyItems={historyItems}
-      />
-    </Suspense>
+    <JournalAppClient
+      initialMoodData={initialMoodData}
+      historyItems={historyItems}
+    />
   );
 }

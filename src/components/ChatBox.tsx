@@ -11,18 +11,26 @@ type ChatBoxProps = {
   value: string;
   onChange: (text: string) => void;
   submitLabel?: string;
+  disabled?: boolean;
+  placeholder?: string;
 };
 
 export function ChatBox({
   value,
   onChange,
   submitLabel = UI.SAVE,
+  disabled = false,
+  placeholder: placeholderOverride,
 }: ChatBoxProps) {
   const [placeholder, setPlaceholder] = useState('');
 
   useEffect(() => {
-    setPlaceholder(getDailyPrompt());
-  }, []);
+    if (!placeholderOverride) {
+      setPlaceholder(getDailyPrompt());
+    }
+  }, [placeholderOverride]);
+
+  const resolvedPlaceholder = placeholderOverride ?? placeholder;
 
   const handleGratitudeShift = () => {
     setPlaceholder(getGratitudeShift());
@@ -34,12 +42,13 @@ export function ChatBox({
         <textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={placeholder}
+          placeholder={resolvedPlaceholder}
           rows={3}
+          disabled={disabled}
           autoComplete="off"
           autoCorrect="on"
           enterKeyHint="done"
-          className="w-full resize-none bg-transparent text-base text-white placeholder-zinc-500 focus:outline-none"
+          className="w-full resize-none bg-transparent text-base text-white placeholder-zinc-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
         />
 
         <div className="mt-4 flex items-center justify-between">
@@ -57,7 +66,8 @@ export function ChatBox({
             <VoiceInput onTextUpdate={onChange} />
             <button
               type="submit"
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-white transition-colors hover:bg-emerald-500"
+              disabled={disabled}
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-400"
             >
               {submitLabel}
             </button>

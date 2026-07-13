@@ -4,7 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "bash scripts/ensure-node-path.sh next dev --hostname 0.0.0.0 --webpack",
-    "build": "next build",
+    "build": "prisma generate && next build",
+    "postinstall": "prisma generate",
     "start": "bash scripts/ensure-node-path.sh next start",
     "lint": "eslint",
     "cap:sync": "bash scripts/ensure-node-path.sh cap sync",

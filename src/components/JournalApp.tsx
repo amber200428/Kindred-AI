@@ -224,6 +224,15 @@ export function JournalApp({
       unselected:
         'border-zinc-800 bg-zinc-900/40 text-zinc-300 hover:border-indigo-500/50',
     },
+    {
+      id: 'finance',
+      name: 'Finance',
+      desc: 'Budgeting frameworks and practical money guidance.',
+      selected:
+        'border-lime-400 bg-lime-500/15 text-white ring-2 ring-lime-400/20 shadow-[0_0_15px_rgba(132,204,22,0.15)] scale-105',
+      unselected:
+        'border-zinc-800 bg-zinc-900/40 text-zinc-300 hover:border-lime-500/50',
+    },
   ];
 
   const handleUpgrade = () => {

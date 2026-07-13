@@ -150,7 +150,24 @@ export async function POST(req: Request) {
       );
     }
 
-    const user = await getOrCreateUser(userId);
+    if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
+      return NextResponse.json(
+        { error: UI.CHAT_UNAVAILABLE },
+        { status: 503 },
+      );
+    }
+
+    let user;
+    try {
+      user = await getOrCreateUser(userId);
+    } catch (error) {
+      console.error('--- USER DB ERROR ---', error);
+      return NextResponse.json(
+        { error: UI.CHAT_UNAVAILABLE },
+        { status: 503 },
+      );
+    }
+
     const isNewDay = user.lastChatDate.toDateString() !== new Date().toDateString();
     const chatCount = getEffectiveChatCount(user);
 
@@ -161,13 +178,17 @@ export async function POST(req: Request) {
       );
     }
 
-    await db.user.update({
-      where: { id: user.id },
-      data: {
-        chatCount: isNewDay ? 1 : chatCount + 1,
-        lastChatDate: new Date(),
-      },
-    });
+    try {
+      await db.user.update({
+        where: { id: user.id },
+        data: {
+          chatCount: isNewDay ? 1 : chatCount + 1,
+          lastChatDate: new Date(),
+        },
+      });
+    } catch (error) {
+      console.error('--- CHAT COUNT UPDATE ERROR ---', error);
+    }
 
     const { messages, personaId, isPrivate, chatId: sessionChatId } = await req.json();
     const userInput = getLatestUserInput(messages);
@@ -182,14 +203,18 @@ export async function POST(req: Request) {
       sessionChatId ?? getLatestUserMessageId(messages) ?? generateId();
 
     if (userInput.trim()) {
-      await db.moodLog.create({
-        data: {
-          userId: user.id,
-          moodLabel,
-          moodValue,
-          chatId,
-        },
-      });
+      try {
+        await db.moodLog.create({
+          data: {
+            userId: user.id,
+            moodLabel,
+            moodValue,
+            chatId,
+          },
+        });
+      } catch (error) {
+        console.error('--- MOOD LOG ERROR ---', error);
+      }
     }
 
     let context = '';

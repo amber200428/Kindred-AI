@@ -11,4 +11,6 @@ export const UI = {
     'Create a free account or sign in to capture this moment and chat with your guide.',
   HISTORY_SAVE_UNAVAILABLE:
     'We could not save this to your history right now, but you can keep chatting here.',
+  CHAT_UNAVAILABLE:
+    'Your guide could not respond right now. Please try again in a moment.',
 };

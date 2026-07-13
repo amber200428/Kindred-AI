@@ -1,15 +1,18 @@
 'use client';
 
-import { useMemo, useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { SignInButton, SignUpButton } from '@clerk/nextjs';
-import { useChat } from '@ai-sdk/react';
 import type { ChatTransport, UIMessage } from 'ai';
 import { PricingPlans } from '@/components/PricingPlans';
 import { saveReflection } from '@/app/actions/chat';
 import { ChatBox } from '@/components/ChatBox';
 import { ChatLayout } from '@/components/ChatLayout';
 import { ReflectionPage } from '@/components/ReflectionPage';
+import {
+  JournalChatSession,
+  type JournalChatApi,
+} from '@/components/JournalChatSession';
 import type { ChatHistoryItem } from '@/lib/types/chats';
 import { type MoodDataPoint } from '@/lib/types/mood';
 import { generateId } from '@/lib/generate-id';
@@ -46,6 +49,7 @@ export function JournalApp({
     () => chatIdProp ?? generateId(),
   );
   const chatIdRef = useRef(chatId);
+  const chatApiRef = useRef<JournalChatApi | null>(null);
   const [moodData, setMoodData] = useState<MoodDataPoint[]>(initialMoodData);
 
   useEffect(() => {
@@ -85,6 +89,22 @@ export function JournalApp({
     }
   }, [searchParams]);
 
+  const handleChatError = useCallback((error: Error) => {
+    if (error.message === RATE_LIMIT_MESSAGE) {
+      setSystemNotice(RATE_LIMIT_MESSAGE);
+    } else if (error.message === LIMIT_REACHED_MESSAGE) {
+      setSystemNotice(LIMIT_REACHED_MESSAGE);
+      setShowPricing(true);
+    } else if (
+      error.message === UI.AUTH_REQUIRED_TO_START ||
+      error.message === 'Unauthorized'
+    ) {
+      setSystemNotice(UI.AUTH_REQUIRED_TO_START);
+    } else {
+      setSystemNotice(UI.CHAT_UNAVAILABLE);
+    }
+  }, []);
+
   const [chatTransport, setChatTransport] =
     useState<ChatTransport<UIMessage> | null>(null);
 
@@ -97,7 +117,7 @@ export function JournalApp({
 
       setChatTransport(
         new DefaultChatTransport({
-          body: { personaId: activePersona, isPrivate, chatId },
+          body: { personaId: activePersona, isPrivate },
           fetch: async (input, init) => {
             const initBody =
               typeof init?.body === 'string' && init.body
@@ -118,7 +138,6 @@ export function JournalApp({
                 .clone()
                 .json()
                 .catch(() => ({}))) as { error?: string };
-              alert(data.error ?? LIMIT_REACHED_MESSAGE);
               setSystemNotice(data.error ?? LIMIT_REACHED_MESSAGE);
               setShowPricing(true);
               return res;
@@ -133,10 +152,18 @@ export function JournalApp({
               return res;
             }
 
-            if (res.ok) {
-              loadMoodData();
+            if (!res.ok) {
+              const data = (await res
+                .clone()
+                .json()
+                .catch(() => ({}))) as { error?: string; details?: string };
+              setSystemNotice(
+                data.error ?? data.details ?? UI.CHAT_UNAVAILABLE,
+              );
+              return res;
             }
 
+            loadMoodData();
             return res;
           },
         }),
@@ -148,35 +175,7 @@ export function JournalApp({
     return () => {
       cancelled = true;
     };
-  }, [activePersona, isPrivate, chatId]);
-
-  const { messages, sendMessage } = useChat({
-    transport: chatTransport ?? undefined,
-    onError: (error) => {
-      if (error.message === RATE_LIMIT_MESSAGE) {
-        setSystemNotice(RATE_LIMIT_MESSAGE);
-      } else if (error.message === LIMIT_REACHED_MESSAGE) {
-        setSystemNotice(LIMIT_REACHED_MESSAGE);
-        setShowPricing(true);
-      } else if (
-        error.message === UI.AUTH_REQUIRED_TO_START ||
-        error.message === 'Unauthorized'
-      ) {
-        setSystemNotice(UI.AUTH_REQUIRED_TO_START);
-      }
-    },
-  });
-
-  useEffect(() => {
-    if (!chatIdProp || !chatTransport || messages.length > 0) return;
-
-    const key = `pendingMessage:${chatIdProp}`;
-    const pending = sessionStorage.getItem(key);
-    if (!pending) return;
-
-    sessionStorage.removeItem(key);
-    void sendMessage({ text: pending });
-  }, [chatIdProp, chatTransport, messages.length, sendMessage]);
+  }, [activePersona, isPrivate]);
 
   const personas = [
     {
@@ -275,63 +274,40 @@ export function JournalApp({
     const text = input.trim();
     if (!text || isSubmitting) return;
 
-    if (!chatTransport) {
+    const sendMessage = chatApiRef.current?.sendMessage;
+    if (!chatTransport || !sendMessage) {
       alert('Still connecting. Please wait a moment and try again.');
       return;
     }
 
     setIsSubmitting(true);
+    setSystemNotice(null);
 
     try {
+      setInput('');
+      await sendMessage({ text });
+
       const title = text.split('\n')[0].slice(0, 80) || UI.NEW_ENTRY;
       const currentChatId = chatIdProp ?? chatId;
       const response = await saveReflection(title, text, currentChatId);
 
-      if (!response.success) {
-        if (
-          response.error === UI.AUTH_REQUIRED_TO_START ||
-          response.error === 'User not authenticated'
-        ) {
-          setSystemNotice(UI.AUTH_REQUIRED_TO_START);
-          return;
+      if (response.success) {
+        chatIdRef.current = response.id;
+        if (response.id !== chatId) {
+          setChatId(response.id);
         }
-
-        if (response.error === UI.HISTORY_SAVE_UNAVAILABLE) {
-          setInput('');
-          await sendMessage({ text });
-          return;
-        }
-
-        if (!chatIdProp) {
-          setInput('');
-          await sendMessage({ text });
-          return;
-        }
-
-        alert('Could not save: ' + response.error);
         return;
       }
 
-      chatIdRef.current = response.id;
-      if (response.id !== chatId) {
-        setChatId(response.id);
+      if (
+        response.error === UI.AUTH_REQUIRED_TO_START ||
+        response.error === 'User not authenticated'
+      ) {
+        setSystemNotice(UI.AUTH_REQUIRED_TO_START);
       }
-      setInput('');
-
-      if (chatIdProp) {
-        await sendMessage({ text });
-        return;
-      }
-
-      sessionStorage.setItem(`pendingMessage:${response.id}`, text);
-      router.push(`/chat/${response.id}`);
     } catch (error) {
       console.error('Submit failed:', error);
-      alert(
-        error instanceof Error
-          ? error.message
-          : 'Something went wrong. Please try again.',
-      );
+      setSystemNotice(UI.CHAT_UNAVAILABLE);
     } finally {
       setIsSubmitting(false);
     }
@@ -421,93 +397,125 @@ export function JournalApp({
         )}
 
         <form onSubmit={handleSubmit} className="mb-24">
-          <ReflectionPage
-            chatBox={
-              <ChatBox
-                value={input}
-                onChange={setInput}
-                submitLabel={isSubmitting ? 'Saving…' : UI.SAVE}
-                disabled={isSubmitting || !chatTransport}
-              />
-            }
-          >
-            <div className="space-y-6">
-              {showUpgradeSuccess && (
-                <div className="flex justify-center">
-                  <div className="max-w-md rounded-2xl border border-emerald-800 bg-emerald-950/50 px-5 py-4 text-center shadow-sm">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-emerald-400">
-                      Welcome back
-                    </p>
-                    <p className="mt-2 font-serif text-sm leading-relaxed text-emerald-100">
-                      Your subscription is active. Keep reflecting whenever you are
-                      ready.
-                    </p>
-                  </div>
-                </div>
-              )}
-              {systemNotice && (
-                <div className="flex justify-center">
-                  <div className="max-w-md rounded-2xl border border-amber-800/80 bg-amber-950/40 px-5 py-4 text-center shadow-sm">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-400">
-                      Gentle reminder
-                    </p>
-                    <p className="mt-2 font-serif text-sm leading-relaxed text-amber-100">
-                      {systemNotice}
-                    </p>
-                    {systemNotice === UI.AUTH_REQUIRED_TO_START && (
-                      <div className="mt-4 flex flex-wrap justify-center gap-3">
-                        <SignUpButton mode="modal">
-                          <button
-                            type="button"
-                            className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-zinc-950 transition-colors hover:bg-white"
-                          >
-                            Create free account
-                          </button>
-                        </SignUpButton>
-                        <SignInButton mode="modal">
-                          <button
-                            type="button"
-                            className="rounded-lg border border-amber-700/80 bg-transparent px-4 py-2 text-sm font-medium text-amber-100 transition-colors hover:bg-amber-900/40"
-                          >
-                            Sign in
-                          </button>
-                        </SignInButton>
+          {chatTransport ? (
+            <JournalChatSession
+              transport={chatTransport}
+              chatRef={chatApiRef}
+              onError={handleChatError}
+            >
+              {({ messages, status }) => (
+                <ReflectionPage
+                  chatBox={
+                    <ChatBox
+                      value={input}
+                      onChange={setInput}
+                      submitLabel={
+                        isSubmitting || status === 'streaming'
+                          ? 'Thinking…'
+                          : UI.SAVE
+                      }
+                      disabled={isSubmitting || status === 'streaming'}
+                    />
+                  }
+                >
+                  <div className="space-y-6">
+                    {showUpgradeSuccess && (
+                      <div className="flex justify-center">
+                        <div className="max-w-md rounded-2xl border border-emerald-800 bg-emerald-950/50 px-5 py-4 text-center shadow-sm">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-emerald-400">
+                            Welcome back
+                          </p>
+                          <p className="mt-2 font-serif text-sm leading-relaxed text-emerald-100">
+                            Your subscription is active. Keep reflecting whenever you
+                            are ready.
+                          </p>
+                        </div>
                       </div>
                     )}
-                    {systemNotice === LIMIT_REACHED_MESSAGE && !showPricing && (
-                      <button
-                        type="button"
-                        onClick={handleUpgrade}
-                        className="mt-4 rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-zinc-950 transition-colors hover:bg-white"
+                    {systemNotice && (
+                      <div className="flex justify-center">
+                        <div className="max-w-md rounded-2xl border border-amber-800/80 bg-amber-950/40 px-5 py-4 text-center shadow-sm">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-amber-400">
+                            Gentle reminder
+                          </p>
+                          <p className="mt-2 font-serif text-sm leading-relaxed text-amber-100">
+                            {systemNotice}
+                          </p>
+                          {systemNotice === UI.AUTH_REQUIRED_TO_START && (
+                            <div className="mt-4 flex flex-wrap justify-center gap-3">
+                              <SignUpButton mode="modal">
+                                <button
+                                  type="button"
+                                  className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-zinc-950 transition-colors hover:bg-white"
+                                >
+                                  Create free account
+                                </button>
+                              </SignUpButton>
+                              <SignInButton mode="modal">
+                                <button
+                                  type="button"
+                                  className="rounded-lg border border-amber-700/80 bg-transparent px-4 py-2 text-sm font-medium text-amber-100 transition-colors hover:bg-amber-900/40"
+                                >
+                                  Sign in
+                                </button>
+                              </SignInButton>
+                            </div>
+                          )}
+                          {systemNotice === LIMIT_REACHED_MESSAGE && !showPricing && (
+                            <button
+                              type="button"
+                              onClick={handleUpgrade}
+                              className="mt-4 rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-zinc-950 transition-colors hover:bg-white"
+                            >
+                              View plans to continue
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                    {messages.map((m) => (
+                      <div
+                        key={m.id}
+                        className={m.role === 'user' ? 'text-right' : 'text-left'}
                       >
-                        View plans to continue
-                      </button>
+                        <div
+                          className={`inline-block max-w-[85%] rounded-2xl p-4 ${
+                            m.role === 'user'
+                              ? 'rounded-br-sm bg-slate-100 text-zinc-950'
+                              : 'rounded-bl-sm border border-zinc-800 bg-zinc-900 text-slate-200 shadow-sm'
+                          }`}
+                        >
+                          {m.parts.map((part, i) =>
+                            part.type === 'text' ? (
+                              <span key={i}>{part.text}</span>
+                            ) : null,
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {(status === 'submitted' || status === 'streaming') && (
+                      <div className="text-left">
+                        <div className="inline-block rounded-2xl rounded-bl-sm border border-zinc-800 bg-zinc-900 px-4 py-3 text-sm text-zinc-400">
+                          Your guide is thinking…
+                        </div>
+                      </div>
                     )}
                   </div>
-                </div>
+                </ReflectionPage>
               )}
-              {messages.map((m) => (
-                <div
-                  key={m.id}
-                  className={m.role === 'user' ? 'text-right' : 'text-left'}
-                >
-                  <div
-                    className={`inline-block max-w-[85%] rounded-2xl p-4 ${
-                      m.role === 'user'
-                        ? 'rounded-br-sm bg-slate-100 text-zinc-950'
-                        : 'rounded-bl-sm border border-zinc-800 bg-zinc-900 text-slate-200 shadow-sm'
-                    }`}
-                  >
-                    {m.parts.map((part, i) =>
-                      part.type === 'text' ? (
-                        <span key={i}>{part.text}</span>
-                      ) : null,
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </ReflectionPage>
+            </JournalChatSession>
+          ) : (
+            <ReflectionPage
+              chatBox={
+                <ChatBox
+                  value={input}
+                  onChange={setInput}
+                  submitLabel="Connecting…"
+                  disabled
+                />
+              }
+            />
+          )}
         </form>
       </div>
     </ChatLayout>

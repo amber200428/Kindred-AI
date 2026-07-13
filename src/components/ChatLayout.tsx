@@ -113,7 +113,7 @@ export function ChatLayout({
           </button>
         </div>
 
-        <Sidebar />
+        <Sidebar onNewEntry={() => setIsDrawerOpen(false)} />
 
         <div className="mb-4">
           <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">

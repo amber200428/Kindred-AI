@@ -30,6 +30,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
   return (
     <Suspense fallback={<div className="min-h-screen bg-zinc-950" />}>
       <JournalApp
+        key={id}
         chatId={id}
         chatTitle={chat.title}
         initialMoodData={initialMoodData}

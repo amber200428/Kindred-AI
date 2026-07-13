@@ -85,6 +85,8 @@ export function JournalApp({
   useEffect(() => {
     if (chatIdProp) {
       setChatId(chatIdProp);
+      setInput('');
+      setSystemNotice(null);
     }
   }, [chatIdProp]);
 
@@ -441,6 +443,7 @@ export function JournalApp({
         <form onSubmit={handleSubmit} className="mb-24">
           {chatTransport ? (
             <JournalChatSession
+              key={chatIdProp ?? chatId}
               transport={chatTransport}
               chatRef={chatApiRef}
               onError={handleChatError}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ChatSearch } from '@/components/ChatSearch';
 import { MoodGraph } from '@/components/MoodGraph';
 import { Sidebar } from '@/components/Sidebar';
@@ -26,7 +26,6 @@ export function ChatLayout({
   onDrawerOpen,
 }: ChatLayoutProps) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-  const historyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isDrawerOpen) {
@@ -53,7 +52,7 @@ export function ChatLayout({
           type="button"
           onClick={() => setIsDrawerOpen(true)}
           className="rounded-md border border-zinc-800 bg-zinc-900 p-2 text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
-          aria-label={`Open ${UI.HISTORY}`}
+          aria-label={`Open ${UI.CHAT_HISTORY}`}
         >
           <svg
             className="h-6 w-6"
@@ -89,13 +88,13 @@ export function ChatLayout({
       >
         <div className="mb-4 flex items-center justify-between">
           <span className="font-semibold tracking-wide text-zinc-200">
-            {UI.HISTORY}
+            {UI.CHAT_HISTORY}
           </span>
           <button
             type="button"
             onClick={() => setIsDrawerOpen(false)}
             className="p-1 text-zinc-400 transition-colors hover:text-white"
-            aria-label={`Close ${UI.HISTORY}`}
+            aria-label={`Close ${UI.CHAT_HISTORY}`}
           >
             <svg
               className="h-5 w-5"
@@ -114,11 +113,7 @@ export function ChatLayout({
           </button>
         </div>
 
-        <Sidebar
-          onHistoryClick={() =>
-            historyRef.current?.scrollIntoView({ behavior: 'smooth' })
-          }
-        />
+        <Sidebar />
 
         <div className="mb-4">
           <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
@@ -127,10 +122,7 @@ export function ChatLayout({
           <MoodGraph data={moodData} compact />
         </div>
 
-        <div ref={historyRef} className="flex-1 overflow-y-auto pr-2">
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
-            {UI.HISTORY}
-          </p>
+        <div className="flex-1 overflow-y-auto pr-2">
           <ChatSearch
             chats={searchChats}
             onSelect={(id) => {

@@ -40,6 +40,7 @@ export function JournalApp({
   const [systemNotice, setSystemNotice] = useState<string | null>(null);
   const [showUpgradeSuccess, setShowUpgradeSuccess] = useState(false);
   const [showPricing, setShowPricing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [chatId, setChatId] = useState(
     () => chatIdProp ?? generateId(),
   );
@@ -139,7 +140,7 @@ export function JournalApp({
     };
   }, [activePersona, isPrivate, chatId]);
 
-  const { messages, sendMessage, setMessages } = useChat({
+  const { messages, sendMessage } = useChat({
     transport: chatTransport ?? undefined,
     onError: (error) => {
       if (error.message === RATE_LIMIT_MESSAGE) {
@@ -150,6 +151,17 @@ export function JournalApp({
       }
     },
   });
+
+  useEffect(() => {
+    if (!chatIdProp || !chatTransport || messages.length > 0) return;
+
+    const key = `pendingMessage:${chatIdProp}`;
+    const pending = sessionStorage.getItem(key);
+    if (!pending) return;
+
+    sessionStorage.removeItem(key);
+    void sendMessage({ text: pending });
+  }, [chatIdProp, chatTransport, messages.length, sendMessage]);
 
   const personas = [
     {
@@ -245,21 +257,52 @@ export function JournalApp({
   };
 
   const handleSave = async () => {
-    if (!input.trim()) return;
+    const text = input.trim();
+    if (!text || isSubmitting) return;
 
-    const title = input.split('\n')[0].slice(0, 80) || UI.NEW_ENTRY;
-    const text = input;
+    if (!chatTransport) {
+      alert('Still connecting. Please wait a moment and try again.');
+      return;
+    }
 
-    const response = await saveReflection(title, text, chatIdProp);
-    if (response.success && response.id) {
-      setChatId(response.id);
+    setIsSubmitting(true);
+
+    try {
+      const title = text.split('\n')[0].slice(0, 80) || UI.NEW_ENTRY;
+      const currentChatId = chatIdProp ?? chatId;
+      const response = await saveReflection(title, text, currentChatId);
+
+      if (!response.success) {
+        if (response.error === 'User not authenticated') {
+          router.push('/sign-in');
+          return;
+        }
+        alert('Could not save: ' + response.error);
+        return;
+      }
+
       chatIdRef.current = response.id;
-      router.push(`/chat/${response.id}`);
-      sendMessage({ text: input });
+      if (response.id !== chatId) {
+        setChatId(response.id);
+      }
       setInput('');
-    } else if (!response.success) {
-      console.error('Failed to save:', response.error);
-      alert('Could not save: ' + response.error);
+
+      if (chatIdProp) {
+        await sendMessage({ text });
+        return;
+      }
+
+      sessionStorage.setItem(`pendingMessage:${response.id}`, text);
+      router.push(`/chat/${response.id}`);
+    } catch (error) {
+      console.error('Submit failed:', error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : 'Something went wrong. Please try again.',
+      );
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -349,7 +392,12 @@ export function JournalApp({
         <form onSubmit={handleSubmit} className="mb-24">
           <ReflectionPage
             chatBox={
-              <ChatBox value={input} onChange={setInput} submitLabel={UI.SAVE} />
+              <ChatBox
+                value={input}
+                onChange={setInput}
+                submitLabel={isSubmitting ? 'Saving…' : UI.SAVE}
+                disabled={isSubmitting || !chatTransport}
+              />
             }
           >
             <div className="space-y-6">

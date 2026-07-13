@@ -11,12 +11,14 @@ type ChatBoxProps = {
   value: string;
   onChange: (text: string) => void;
   submitLabel?: string;
+  disabled?: boolean;
 };
 
 export function ChatBox({
   value,
   onChange,
   submitLabel = UI.SAVE,
+  disabled = false,
 }: ChatBoxProps) {
   const [placeholder, setPlaceholder] = useState('');
 
@@ -57,7 +59,8 @@ export function ChatBox({
             <VoiceInput onTextUpdate={onChange} />
             <button
               type="submit"
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-white transition-colors hover:bg-emerald-500"
+              disabled={disabled || !value.trim()}
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {submitLabel}
             </button>

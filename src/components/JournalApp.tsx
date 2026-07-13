@@ -277,6 +277,20 @@ export function JournalApp({
           router.push('/sign-in');
           return;
         }
+
+        const storageUnavailable =
+          response.error.includes('Missing Supabase') ||
+          response.error.includes('Database is not configured');
+
+        if (storageUnavailable) {
+          setInput('');
+          await sendMessage({ text });
+          setSystemNotice(
+            'Your guide can still respond, but chat history is unavailable until Supabase is configured.',
+          );
+          return;
+        }
+
         alert('Could not save: ' + response.error);
         return;
       }

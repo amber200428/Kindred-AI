@@ -127,7 +127,10 @@ export async function POST(req: Request) {
   const ip = getClientIp(req);
 
   if (isRateLimited(ip)) {
-    return new Response(RATE_LIMIT_MESSAGE, { status: 429 });
+    return NextResponse.json(
+      { error: RATE_LIMIT_MESSAGE },
+      { status: 429 },
+    );
   }
 
   try {
@@ -178,18 +181,6 @@ export async function POST(req: Request) {
       );
     }
 
-    try {
-      await db.user.update({
-        where: { id: user.id },
-        data: {
-          chatCount: isNewDay ? 1 : chatCount + 1,
-          lastChatDate: new Date(),
-        },
-      });
-    } catch (error) {
-      console.error('--- CHAT COUNT UPDATE ERROR ---', error);
-    }
-
     const { messages, personaId, isPrivate, chatId: sessionChatId } = await req.json();
     const userInput = getLatestUserInput(messages);
     const selectedPrompt =
@@ -219,14 +210,18 @@ export async function POST(req: Request) {
 
     let context = '';
     if (!isPrivate && index && userInput) {
-      const results = await index.query({
-        data: userInput,
-        topK: 1,
-        includeMetadata: true,
-      });
+      try {
+        const results = await index.query({
+          data: userInput,
+          topK: 1,
+          includeMetadata: true,
+        });
 
-      if (results.length > 0) {
-        context = `User previously wrote: "${results[0].metadata?.text}"`;
+        if (results.length > 0) {
+          context = `User previously wrote: "${results[0].metadata?.text}"`;
+        }
+      } catch (error) {
+        console.error('--- VECTOR QUERY ERROR ---', error);
       }
     }
 
@@ -235,20 +230,30 @@ Context: Sentiment score is ${analysis.score} (${sentimentLabel}). ${context}
 Action: If context exists, gently reference the past entry — for example, "I remember you mentioned..." If sentiment is low, offer a 'Reflective Journey' prompt.`;
 
     const result = await streamText({
-      model: google('gemini-2.5-flash'),
+      model: google('gemini-2.0-flash'),
       system: systemPrompt,
       messages: await convertToModelMessages(messages),
     });
 
+    try {
+      await db.user.update({
+        where: { id: user.id },
+        data: {
+          chatCount: isNewDay ? 1 : chatCount + 1,
+          lastChatDate: new Date(),
+        },
+      });
+    } catch (error) {
+      console.error('--- CHAT COUNT UPDATE ERROR ---', error);
+    }
+
     return result.toUIMessageStreamResponse();
   } catch (error) {
     console.error('--- DETAILED API ERROR ---', error);
-    return new Response(
-      JSON.stringify({
-        error: 'Internal Server Error',
-        details: error instanceof Error ? error.message : String(error),
-      }),
-      { status: 500, headers: { 'Content-Type': 'application/json' } },
+    const details = error instanceof Error ? error.message : String(error);
+    return NextResponse.json(
+      { error: UI.CHAT_UNAVAILABLE, details },
+      { status: 500 },
     );
   }
 }

@@ -50,11 +50,21 @@ export function JournalApp({
   );
   const chatIdRef = useRef(chatId);
   const chatApiRef = useRef<JournalChatApi | null>(null);
+  const activePersonaRef = useRef(activePersona);
+  const isPrivateRef = useRef(isPrivate);
   const [moodData, setMoodData] = useState<MoodDataPoint[]>(initialMoodData);
 
   useEffect(() => {
     chatIdRef.current = chatId;
   }, [chatId]);
+
+  useEffect(() => {
+    activePersonaRef.current = activePersona;
+  }, [activePersona]);
+
+  useEffect(() => {
+    isPrivateRef.current = isPrivate;
+  }, [isPrivate]);
 
   const loadMoodData = async () => {
     try {
@@ -107,17 +117,20 @@ export function JournalApp({
 
   const [chatTransport, setChatTransport] =
     useState<ChatTransport<UIMessage> | null>(null);
+  const transportReadyRef = useRef(false);
 
   useEffect(() => {
+    if (transportReadyRef.current) return;
+
     let cancelled = false;
 
     async function loadTransport() {
       const { DefaultChatTransport } = await import('ai');
       if (cancelled) return;
 
+      transportReadyRef.current = true;
       setChatTransport(
         new DefaultChatTransport({
-          body: { personaId: activePersona, isPrivate },
           fetch: async (input, init) => {
             const initBody =
               typeof init?.body === 'string' && init.body
@@ -127,11 +140,20 @@ export function JournalApp({
               ...init,
               body: JSON.stringify({
                 ...initBody,
-                personaId: activePersona,
-                isPrivate,
+                personaId: activePersonaRef.current,
+                isPrivate: isPrivateRef.current,
                 chatId: chatIdRef.current,
               }),
             });
+
+            if (res.status === 429) {
+              const data = (await res
+                .clone()
+                .json()
+                .catch(() => ({}))) as { error?: string };
+              setSystemNotice(data.error ?? RATE_LIMIT_MESSAGE);
+              return res;
+            }
 
             if (res.status === 403) {
               const data = (await res
@@ -175,7 +197,7 @@ export function JournalApp({
     return () => {
       cancelled = true;
     };
-  }, [activePersona, isPrivate]);
+  }, []);
 
   const personas = [
     {
@@ -287,24 +309,26 @@ export function JournalApp({
       setInput('');
       await sendMessage({ text });
 
-      const title = text.split('\n')[0].slice(0, 80) || UI.NEW_ENTRY;
-      const currentChatId = chatIdProp ?? chatId;
-      const response = await saveReflection(title, text, currentChatId);
-
-      if (response.success) {
-        chatIdRef.current = response.id;
-        if (response.id !== chatId) {
-          setChatId(response.id);
+      void saveReflection(
+        text.split('\n')[0].slice(0, 80) || UI.NEW_ENTRY,
+        text,
+        chatIdProp ?? chatId,
+      ).then((response) => {
+        if (response.success) {
+          chatIdRef.current = response.id;
+          if (response.id !== chatId) {
+            setChatId(response.id);
+          }
+          return;
         }
-        return;
-      }
 
-      if (
-        response.error === UI.AUTH_REQUIRED_TO_START ||
-        response.error === 'User not authenticated'
-      ) {
-        setSystemNotice(UI.AUTH_REQUIRED_TO_START);
-      }
+        if (
+          response.error === UI.AUTH_REQUIRED_TO_START ||
+          response.error === 'User not authenticated'
+        ) {
+          setSystemNotice(UI.AUTH_REQUIRED_TO_START);
+        }
+      });
     } catch (error) {
       console.error('Submit failed:', error);
       setSystemNotice(UI.CHAT_UNAVAILABLE);

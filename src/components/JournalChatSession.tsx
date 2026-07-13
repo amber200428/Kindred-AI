@@ -13,6 +13,7 @@ export type JournalChatApi = {
 type JournalChatSessionProps = {
   transport: ChatTransport<UIMessage>;
   chatRef: MutableRefObject<JournalChatApi | null>;
+  initialMessages?: UIMessage[];
   onError: (error: Error) => void;
   children: (ctx: { messages: UIMessage[]; status: string }) => ReactNode;
 };
@@ -20,11 +21,13 @@ type JournalChatSessionProps = {
 export function JournalChatSession({
   transport,
   chatRef,
+  initialMessages = [],
   onError,
   children,
 }: JournalChatSessionProps) {
   const { messages, sendMessage, status } = useChat({
     transport,
+    messages: initialMessages,
     onError,
   });
 

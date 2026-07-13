@@ -13,6 +13,12 @@ import {
 import { sentimentToMood } from '@/lib/mood';
 import { UI } from '@/lib/labels';
 import { createGoogleProvider, getGoogleApiKey, getGoogleChatModelIds } from '@/lib/google-ai';
+import {
+  ensureChatForUser,
+  getLatestPersistableUserMessage,
+  saveChatMessage,
+  syncChatPreview,
+} from '@/lib/chat-messages';
 
 const RATE_LIMIT = 10;
 const WINDOW_MS = 60 * 60 * 1000;
@@ -192,6 +198,29 @@ export async function POST(req: Request) {
     const chatId =
       sessionChatId ?? getLatestUserMessageId(messages) ?? generateId();
 
+    const latestUserMessage = getLatestPersistableUserMessage(messages);
+
+    if (latestUserMessage) {
+      try {
+        const title =
+          latestUserMessage.text.split('\n')[0].slice(0, 80) || UI.NEW_ENTRY;
+        await ensureChatForUser({
+          chatId,
+          userId,
+          title,
+        });
+        await saveChatMessage({
+          id: latestUserMessage.id,
+          chatId,
+          role: 'user',
+          content: latestUserMessage.text,
+        });
+        await syncChatPreview(chatId, userId);
+      } catch (error) {
+        console.error('--- USER MESSAGE SAVE ERROR ---', error);
+      }
+    }
+
     if (userInput.trim()) {
       try {
         await db.moodLog.create({
@@ -256,8 +285,17 @@ Action: If context exists, gently reference the past entry — for example, "I r
       model: googleProvider(selectedModel),
       system: systemPrompt,
       messages: modelMessages,
-      onFinish: async () => {
+      onFinish: async ({ text }) => {
         try {
+          if (text.trim()) {
+            await saveChatMessage({
+              chatId,
+              role: 'assistant',
+              content: text,
+            });
+            await syncChatPreview(chatId, userId);
+          }
+
           await db.user.update({
             where: { id: user.id },
             data: {
@@ -266,7 +304,7 @@ Action: If context exists, gently reference the past entry — for example, "I r
             },
           });
         } catch (error) {
-          console.error('--- CHAT COUNT UPDATE ERROR ---', error);
+          console.error('--- CHAT FINISH ERROR ---', error);
         }
       },
     });

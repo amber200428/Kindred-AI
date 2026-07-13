@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { notFound, redirect } from 'next/navigation';
 import { JournalApp } from '@/components/JournalApp';
 import { getChatForUser, getChatsForUser } from '@/lib/chats';
+import { getMessagesForChat } from '@/lib/chat-messages';
 import { getMoodDataForCurrentUser } from '@/lib/mood';
 
 type ChatPageProps = {
@@ -17,8 +18,9 @@ export default async function ChatPage({ params }: ChatPageProps) {
     redirect('/sign-in');
   }
 
-  const [chat, initialMoodData, historyItems] = await Promise.all([
+  const [chat, initialMessages, initialMoodData, historyItems] = await Promise.all([
     getChatForUser(id, userId),
+    getMessagesForChat(id, userId),
     getMoodDataForCurrentUser().catch(() => []),
     getChatsForUser(userId),
   ]);
@@ -33,6 +35,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
         key={id}
         chatId={id}
         chatTitle={chat.title}
+        initialMessages={initialMessages}
         initialMoodData={initialMoodData}
         historyItems={historyItems}
       />

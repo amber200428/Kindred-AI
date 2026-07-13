@@ -8,6 +8,7 @@ export type { ChatHistoryItem } from '@/lib/types/chats';
 type ChatListRow = {
   id: string;
   title: string;
+  content: string | null;
 };
 
 export async function getChatsForUser(
@@ -20,9 +21,9 @@ export async function getChatsForUser(
 
   const { data, error } = await supabase
     .from('chats')
-    .select('id, title')
+    .select('id, title, content')
     .eq('user_id', clerkUserId)
-    .order('created_at', { ascending: false });
+    .order('updated_at', { ascending: false });
 
   if (error) {
     console.error('Error fetching chats:', error);
@@ -32,6 +33,7 @@ export async function getChatsForUser(
   return (data as ChatListRow[]).map((chat) => ({
     id: chat.id,
     label: chat.title,
+    content: chat.content ?? undefined,
   }));
 }
 

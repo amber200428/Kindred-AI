@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { SignInButton, SignUpButton } from '@clerk/nextjs';
 import type { ChatTransport, UIMessage } from 'ai';
 import { PricingPlans } from '@/components/PricingPlans';
-import { saveReflection } from '@/app/actions/chat';
 import { ChatBox } from '@/components/ChatBox';
 import { ChatLayout } from '@/components/ChatLayout';
 import { ReflectionPage } from '@/components/ReflectionPage';
@@ -26,6 +25,7 @@ const LIMIT_REACHED_MESSAGE =
 type JournalAppProps = {
   chatId?: string;
   chatTitle?: string;
+  initialMessages?: UIMessage[];
   initialMoodData?: MoodDataPoint[];
   historyItems?: ChatHistoryItem[];
 };
@@ -33,6 +33,7 @@ type JournalAppProps = {
 export function JournalApp({
   chatId: chatIdProp,
   chatTitle,
+  initialMessages = [],
   initialMoodData = [],
   historyItems = [],
 }: JournalAppProps) {
@@ -329,26 +330,10 @@ export function JournalApp({
       setInput('');
       await sendMessage({ text });
 
-      void saveReflection(
-        text.split('\n')[0].slice(0, 80) || UI.NEW_ENTRY,
-        text,
-        chatIdProp ?? chatId,
-      ).then((response) => {
-        if (response.success) {
-          chatIdRef.current = response.id;
-          if (response.id !== chatId) {
-            setChatId(response.id);
-          }
-          return;
-        }
-
-        if (
-          response.error === UI.AUTH_REQUIRED_TO_START ||
-          response.error === 'User not authenticated'
-        ) {
-          setSystemNotice(UI.AUTH_REQUIRED_TO_START);
-        }
-      });
+      if (!chatIdProp) {
+        router.push(`/chat/${chatId}`);
+        router.refresh();
+      }
     } catch (error) {
       console.error('Submit failed:', error);
       setSystemNotice(UI.CHAT_UNAVAILABLE);
@@ -446,6 +431,7 @@ export function JournalApp({
               key={chatIdProp ?? chatId}
               transport={chatTransport}
               chatRef={chatApiRef}
+              initialMessages={initialMessages}
               onError={handleChatError}
             >
               {({ messages, status }) => (

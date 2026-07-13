@@ -309,13 +309,17 @@ export function JournalApp({
               {showPricing ? 'Hide plans' : 'View plans'}
             </button>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-            {personas.map((p) => (
+          <div className="mx-auto grid max-w-3xl grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+            {personas.map((p, index) => (
               <button
                 key={p.id}
                 onClick={() => setActivePersona(p.id)}
-                className={`p-4 rounded-2xl border-2 text-left transition-all duration-200 ${
+                className={`flex min-h-[5.25rem] flex-col justify-center rounded-2xl border-2 p-4 text-left transition-all duration-200 ${
                   activePersona === p.id ? p.selected : p.unselected
+                } ${
+                  personas.length % 2 !== 0 && index === personas.length - 1
+                    ? 'sm:col-span-2 sm:mx-auto sm:max-w-[calc(50%-0.5rem)] lg:col-span-1 lg:max-w-none'
+                    : ''
                 }`}
               >
                 <h3

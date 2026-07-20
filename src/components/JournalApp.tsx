@@ -327,7 +327,6 @@ export function JournalApp({
     setChatSessionKey((key) => key + 1);
 
     router.push('/');
-    router.refresh();
   }, [router]);
 
   const handleSave = async () => {
@@ -347,9 +346,8 @@ export function JournalApp({
       setInput('');
       await sendMessage({ text });
 
-      if (!chatIdProp) {
-        router.push(`/chat/${chatId}`);
-        router.refresh();
+      if (!chatIdProp && typeof window !== 'undefined') {
+        window.history.replaceState(null, '', `/chat/${chatIdRef.current}`);
       }
     } catch (error) {
       console.error('Submit failed:', error);

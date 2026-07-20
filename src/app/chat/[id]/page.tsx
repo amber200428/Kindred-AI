@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { auth } from '@clerk/nextjs/server';
-import { notFound, redirect } from 'next/navigation';
+import { redirect } from 'next/navigation';
 import { JournalApp } from '@/components/JournalApp';
 import { getChatForUser, getChatsForUser } from '@/lib/chats';
 import { getMessagesForChat } from '@/lib/chat-messages';
@@ -26,7 +26,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
   ]);
 
   if (!chat) {
-    notFound();
+    redirect('/');
   }
 
   return (

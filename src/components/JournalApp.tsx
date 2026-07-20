@@ -173,8 +173,9 @@ export function JournalApp({
                 .clone()
                 .json()
                 .catch(() => ({}))) as { error?: string };
-              setSystemNotice(data.error ?? RATE_LIMIT_MESSAGE);
-              return res;
+              const message = data.error ?? RATE_LIMIT_MESSAGE;
+              setSystemNotice(message);
+              throw new Error(message);
             }
 
             if (res.status === 403) {
@@ -182,9 +183,10 @@ export function JournalApp({
                 .clone()
                 .json()
                 .catch(() => ({}))) as { error?: string };
-              setSystemNotice(data.error ?? LIMIT_REACHED_MESSAGE);
+              const message = data.error ?? LIMIT_REACHED_MESSAGE;
+              setSystemNotice(message);
               setShowPricing(true);
-              return res;
+              throw new Error(message);
             }
 
             if (res.status === 401) {
@@ -192,8 +194,9 @@ export function JournalApp({
                 .clone()
                 .json()
                 .catch(() => ({}))) as { error?: string };
-              setSystemNotice(data.error ?? UI.AUTH_REQUIRED_TO_START);
-              return res;
+              const message = data.error ?? UI.AUTH_REQUIRED_TO_START;
+              setSystemNotice(message);
+              throw new Error(message);
             }
 
             if (!res.ok) {
@@ -201,10 +204,9 @@ export function JournalApp({
                 .clone()
                 .json()
                 .catch(() => ({}))) as { error?: string; details?: string };
-              setSystemNotice(
-                data.error ?? data.details ?? UI.CHAT_UNAVAILABLE,
-              );
-              return res;
+              const message = data.error ?? data.details ?? UI.CHAT_UNAVAILABLE;
+              setSystemNotice(message);
+              throw new Error(message);
             }
 
             loadMoodData();

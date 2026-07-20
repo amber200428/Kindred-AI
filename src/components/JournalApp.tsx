@@ -49,6 +49,7 @@ export function JournalApp({
   const [chatId, setChatId] = useState(
     () => chatIdProp ?? generateId(),
   );
+  const [chatSessionKey, setChatSessionKey] = useState(0);
   const chatIdRef = useRef(chatId);
   const chatApiRef = useRef<JournalChatApi | null>(null);
   const activePersonaRef = useRef(activePersona);
@@ -313,6 +314,20 @@ export function JournalApp({
     router.push(`/chat/${id}`);
   };
 
+  const handleNewChat = useCallback(() => {
+    chatApiRef.current?.setMessages([]);
+
+    const nextChatId = generateId();
+    setChatId(nextChatId);
+    chatIdRef.current = nextChatId;
+    setInput('');
+    setSystemNotice(null);
+    setChatSessionKey((key) => key + 1);
+
+    router.push('/');
+    router.refresh();
+  }, [router]);
+
   const handleSave = async () => {
     const text = input.trim();
     if (!text || isSubmitting) return;
@@ -353,6 +368,7 @@ export function JournalApp({
       historyItems={historyItems}
       onDrawerOpen={loadMoodData}
       onSelectHistory={handleSelectHistory}
+      onNewChat={handleNewChat}
       footer={
         <div className="pointer-events-none fixed bottom-0 left-0 right-0 bg-gradient-to-t from-zinc-950 via-zinc-950 to-transparent p-6">
           <div className="pointer-events-auto mx-auto max-w-2xl">
@@ -428,10 +444,10 @@ export function JournalApp({
         <form onSubmit={handleSubmit} className="mb-24">
           {chatTransport ? (
             <JournalChatSession
-              key={chatIdProp ?? chatId}
+              key={`${chatIdProp ?? chatId}-${chatSessionKey}`}
               transport={chatTransport}
               chatRef={chatApiRef}
-              initialMessages={initialMessages}
+              initialMessages={chatIdProp ? initialMessages : []}
               onError={handleChatError}
             >
               {({ messages, status }) => (

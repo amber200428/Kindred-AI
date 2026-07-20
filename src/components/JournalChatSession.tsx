@@ -7,6 +7,9 @@ import { type MutableRefObject, type ReactNode, useEffect } from 'react';
 export type JournalChatApi = {
   messages: UIMessage[];
   sendMessage: (message: { text: string }) => Promise<void>;
+  setMessages: (
+    messages: UIMessage[] | ((messages: UIMessage[]) => UIMessage[]),
+  ) => void;
   status: string;
 };
 
@@ -25,15 +28,15 @@ export function JournalChatSession({
   onError,
   children,
 }: JournalChatSessionProps) {
-  const { messages, sendMessage, status } = useChat({
+  const { messages, sendMessage, setMessages, status } = useChat({
     transport,
     messages: initialMessages,
     onError,
   });
 
   useEffect(() => {
-    chatRef.current = { messages, sendMessage, status };
-  }, [messages, sendMessage, status, chatRef]);
+    chatRef.current = { messages, sendMessage, setMessages, status };
+  }, [messages, sendMessage, setMessages, status, chatRef]);
 
   return <>{children({ messages, status })}</>;
 }

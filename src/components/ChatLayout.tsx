@@ -14,6 +14,7 @@ type ChatLayoutProps = {
   historyItems?: ChatHistoryItem[];
   moodData?: MoodDataPoint[];
   onSelectHistory?: (id: string) => void;
+  onNewChat?: () => void;
   onDrawerOpen?: () => void;
 };
 
@@ -23,6 +24,7 @@ export function ChatLayout({
   historyItems = [],
   moodData = [],
   onSelectHistory,
+  onNewChat,
   onDrawerOpen,
 }: ChatLayoutProps) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -113,7 +115,12 @@ export function ChatLayout({
           </button>
         </div>
 
-        <Sidebar onNewEntry={() => setIsDrawerOpen(false)} />
+        <Sidebar
+          onNewChat={() => {
+            onNewChat?.();
+            setIsDrawerOpen(false);
+          }}
+        />
 
         <div className="mb-4">
           <p className="mb-2 text-xs font-medium uppercase tracking-wide text-zinc-500">

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getGoogleApiKey, getGoogleChatModelIds } from '@/lib/google-ai';
-import { getSupabaseEnvStatus, getSupabaseUrl } from '@/lib/supabase/env';
+import { getSupabaseEnvStatus, getSupabaseServiceRoleKeyFormat, getSupabaseUrl } from '@/lib/supabase/env';
 import { checkSupabaseChatTables } from '@/lib/supabase/tables';
 
 export const dynamic = 'force-dynamic';
@@ -10,6 +10,8 @@ export async function GET() {
   const supabaseTables = supabaseEnv.ready
     ? await checkSupabaseChatTables()
     : { chats: false, messages: false, error: 'Supabase env vars missing.' };
+
+  const serviceRoleKeyFormat = getSupabaseServiceRoleKeyFormat();
 
   return NextResponse.json({
     googleKey: Boolean(getGoogleApiKey()),
@@ -24,6 +26,10 @@ export async function GET() {
     supabaseMisconfigured:
       supabaseEnv.url && !supabaseEnv.urlValid
         ? 'NEXT_PUBLIC_SUPABASE_URL must be your project URL (https://YOUR-PROJECT.supabase.co), not an API key.'
-        : null,
+        : serviceRoleKeyFormat === 'publishable'
+          ? 'SUPABASE_SERVICE_ROLE_KEY looks like a publishable/anon key. Use the service_role JWT from Supabase Dashboard → Settings → API.'
+          : !supabaseEnv.serviceRoleKey
+            ? 'SUPABASE_SERVICE_ROLE_KEY is missing. Chat history writes require the service role key on the server.'
+            : null,
   });
 }

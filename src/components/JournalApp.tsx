@@ -16,6 +16,7 @@ import {
 import type { ChatHistoryItem } from '@/lib/types/chats';
 import { type MoodDataPoint } from '@/lib/types/mood';
 import { generateId } from '@/lib/generate-id';
+import { formatUserFacingApiError } from '@/lib/api-errors';
 import { UI } from '@/lib/labels';
 
 const RATE_LIMIT_MESSAGE =
@@ -94,7 +95,13 @@ export function JournalApp({
       if (res.ok) {
         setHistoryItems(json.data ?? []);
       } else if (res.status === 503) {
-        setSystemNotice(json.error ?? UI.HISTORY_SAVE_UNAVAILABLE);
+        setSystemNotice(
+          formatUserFacingApiError({
+            error: json.error,
+            details: json.details,
+            fallback: UI.HISTORY_SAVE_UNAVAILABLE,
+          }),
+        );
       }
     } catch {
       // History refresh is best-effort.
@@ -229,7 +236,11 @@ export function JournalApp({
                 .clone()
                 .json()
                 .catch(() => ({}))) as { error?: string; details?: string };
-              const message = data.error ?? data.details ?? UI.CHAT_UNAVAILABLE;
+              const message = formatUserFacingApiError({
+                error: data.error,
+                details: data.details,
+                fallback: UI.CHAT_UNAVAILABLE,
+              });
               setSystemNotice(message);
               throw new Error(message);
             }

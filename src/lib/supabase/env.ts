@@ -45,7 +45,25 @@ export function getSupabaseAnonKey(): string | undefined {
 }
 
 export function getSupabaseServerKey(): string | undefined {
-  return getSupabaseServiceRoleKey() ?? getSupabaseAnonKey();
+  return getSupabaseServiceRoleKey();
+}
+
+export function getSupabaseServiceRoleKeyFormat():
+  | 'jwt'
+  | 'publishable'
+  | 'missing'
+  | 'unknown' {
+  const key = getSupabaseServiceRoleKey();
+  if (!key) {
+    return 'missing';
+  }
+  if (key.startsWith('eyJ')) {
+    return 'jwt';
+  }
+  if (key.startsWith('sb_publishable_') || key.startsWith('sb_secret_')) {
+    return 'publishable';
+  }
+  return 'unknown';
 }
 
 export function getSupabaseEnvStatus(): SupabaseEnvStatus {
@@ -60,6 +78,6 @@ export function getSupabaseEnvStatus(): SupabaseEnvStatus {
     urlValid,
     serviceRoleKey,
     anonKey,
-    ready: urlValid && (serviceRoleKey || anonKey),
+    ready: urlValid && serviceRoleKey,
   };
 }

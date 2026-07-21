@@ -5,14 +5,10 @@ import { getChatsForUser } from '@/lib/chats';
 import { getMoodDataForCurrentUser } from '@/lib/mood';
 import type { ChatHistoryItem } from '@/lib/types/chats';
 
-export default async function Page() {
-  let userId: string | null = null;
+export const dynamic = 'force-dynamic';
 
-  try {
-    ({ userId } = await auth());
-  } catch (error) {
-    console.error('--- HOME PAGE AUTH ERROR ---', error);
-  }
+export default async function Page() {
+  const { userId } = await auth();
 
   let initialMoodData: Awaited<ReturnType<typeof getMoodDataForCurrentUser>> = [];
   let historyItems: ChatHistoryItem[] = [];

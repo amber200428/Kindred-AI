@@ -2,7 +2,6 @@ export const dynamic = 'force-dynamic';
 
 import { auth, currentUser } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
-import Stripe from 'stripe';
 import { db } from '@/lib/db';
 import {
   PLAN_IDS,
@@ -20,6 +19,20 @@ type CheckoutUser = {
   email: string;
 };
 
+function isStripeLikeError(
+  error: unknown,
+): error is { message?: string; code?: string; type?: string } {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+
+  const candidate = error as { type?: unknown; raw?: unknown };
+  return (
+    typeof candidate.type === 'string' &&
+    candidate.type.startsWith('Stripe')
+  );
+}
+
 function resolveCheckoutEmail(
   user: CheckoutUser,
   clerkEmail?: string | null,
@@ -35,26 +48,39 @@ function resolveCheckoutEmail(
   return user.email;
 }
 
+async function clearStripeCustomerId(userId: string) {
+  await db.user.update({
+    where: { id: userId },
+    data: { stripeCustomerId: null },
+  });
+}
+
 async function resolveCheckoutCustomer(
   user: CheckoutUser,
   clerkEmail?: string | null,
 ): Promise<{ customer: string } | { customer_email: string }> {
   if (user.stripeCustomerId) {
     try {
-      await getStripe().customers.retrieve(user.stripeCustomerId);
-      return { customer: user.stripeCustomerId };
-    } catch (error) {
-      if (
-        error instanceof Stripe.errors.StripeError &&
-        error.code === 'resource_missing'
-      ) {
-        await db.user.update({
-          where: { id: user.id },
-          data: { stripeCustomerId: null },
-        });
-      } else {
-        throw error;
+      const customer = await getStripe().customers.retrieve(
+        user.stripeCustomerId,
+      );
+
+      if (!('deleted' in customer && customer.deleted)) {
+        return { customer: user.stripeCustomerId };
       }
+
+      await clearStripeCustomerId(user.id);
+    } catch (error) {
+      // Test/live mismatch, deleted customers, or wrong-account IDs should
+      // never block checkout — clear and fall back to email.
+      console.warn(
+        '--- STRIPE CHECKOUT --- clearing invalid stripeCustomerId',
+        user.stripeCustomerId,
+        isStripeLikeError(error)
+          ? { code: error.code, type: error.type, message: error.message }
+          : error,
+      );
+      await clearStripeCustomerId(user.id);
     }
   }
 
@@ -165,11 +191,21 @@ export async function POST(req: Request) {
       );
     }
 
+    if (message.includes('Unique constraint failed')) {
+      return NextResponse.json(
+        {
+          error:
+            'Your account email is already linked to another profile. Sign out, sign back in, and try again.',
+        },
+        { status: 409 },
+      );
+    }
+
     if (message.includes('email address to your account')) {
       return NextResponse.json({ error: message }, { status: 400 });
     }
 
-    if (error instanceof Stripe.errors.StripeError) {
+    if (isStripeLikeError(error)) {
       console.error('Stripe code:', error.code, 'type:', error.type);
       return NextResponse.json(
         {
@@ -181,6 +217,14 @@ export async function POST(req: Request) {
       );
     }
 
-    return NextResponse.json({ error: 'Checkout failed' }, { status: 500 });
+    // Surface the real failure so the UI is actionable instead of opaque.
+    return NextResponse.json(
+      {
+        error: message
+          ? `Checkout failed: ${message}`
+          : 'Checkout failed. Please try again in a moment.',
+      },
+      { status: 500 },
+    );
   }
 }

@@ -37,14 +37,37 @@ export function isTrialActive(user: {
 export async function getOrCreateUser(clerkId: string, email?: string) {
   const resolvedEmail = email ?? placeholderEmail(clerkId);
 
-  return db.user.upsert({
-    where: { clerkId },
-    create: {
-      clerkId,
-      email: resolvedEmail,
-    },
-    update: email ? { email } : {},
-  });
+  try {
+    return await db.user.upsert({
+      where: { clerkId },
+      create: {
+        clerkId,
+        email: resolvedEmail,
+      },
+      update: email ? { email } : {},
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+
+    // Another Clerk account may already own this email — keep checkout unblocked.
+    if (message.includes('Unique constraint failed') && email) {
+      const existing = await db.user.findUnique({ where: { clerkId } });
+      if (existing) {
+        return existing;
+      }
+
+      return db.user.upsert({
+        where: { clerkId },
+        create: {
+          clerkId,
+          email: placeholderEmail(clerkId),
+        },
+        update: {},
+      });
+    }
+
+    throw error;
+  }
 }
 
 // Backwards-compatible alias

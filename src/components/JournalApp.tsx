@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { SignInButton, SignUpButton } from '@clerk/nextjs';
+import Link from 'next/link';
 import type { ChatTransport, UIMessage } from 'ai';
 import { createChatDraft } from '@/app/actions/chat';
 import { PricingPlans } from '@/components/PricingPlans';
@@ -586,22 +586,18 @@ export function JournalApp({
                           </p>
                           {systemNotice === UI.AUTH_REQUIRED_TO_START && (
                             <div className="mt-4 flex flex-wrap justify-center gap-3">
-                              <SignUpButton mode="modal">
-                                <button
-                                  type="button"
-                                  className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-zinc-950 transition-colors hover:bg-white"
-                                >
-                                  Create free account
-                                </button>
-                              </SignUpButton>
-                              <SignInButton mode="modal">
-                                <button
-                                  type="button"
-                                  className="rounded-lg border border-amber-700/80 bg-transparent px-4 py-2 text-sm font-medium text-amber-100 transition-colors hover:bg-amber-900/40"
-                                >
-                                  Sign in
-                                </button>
-                              </SignInButton>
+                              <Link
+                                href="/sign-up"
+                                className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-zinc-950 transition-colors hover:bg-white"
+                              >
+                                Create free account
+                              </Link>
+                              <Link
+                                href="/sign-in"
+                                className="rounded-lg border border-amber-700/80 bg-transparent px-4 py-2 text-sm font-medium text-amber-100 transition-colors hover:bg-amber-900/40"
+                              >
+                                Sign in
+                              </Link>
                             </div>
                           )}
                           {systemNotice === LIMIT_REACHED_MESSAGE && !showPricing && (

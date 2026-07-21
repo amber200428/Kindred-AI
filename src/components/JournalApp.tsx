@@ -413,6 +413,8 @@ export function JournalApp({
     await handleSave();
   };
 
+  const isExistingChat = Boolean(chatIdProp);
+
   return (
     <ChatLayout
       moodData={moodData}
@@ -442,11 +444,18 @@ export function JournalApp({
       }
     >
       <div className="mx-auto w-full max-w-4xl p-6 font-sans">
-        <div className="mb-12">
+        <div className={isExistingChat ? 'mb-8' : 'mb-12'}>
           <div className="mb-6 flex items-center justify-between gap-4">
-            <h1 className="text-3xl font-serif text-slate-50 text-center flex-1">
-              {chatTitle ?? 'Choose your guide today'}
-            </h1>
+            <div className="flex-1 text-center">
+              <h1 className="text-3xl font-serif text-slate-50">
+                {isExistingChat ? 'Your reflection' : 'Choose your guide today'}
+              </h1>
+              {isExistingChat && chatTitle ? (
+                <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-zinc-400">
+                  {chatTitle}
+                </p>
+              ) : null}
+            </div>
             <button
               type="button"
               onClick={() => setShowPricing((open) => !open)}
@@ -455,6 +464,7 @@ export function JournalApp({
               {showPricing ? 'Hide plans' : 'View plans'}
             </button>
           </div>
+          {!isExistingChat ? (
           <div className="mx-auto grid max-w-3xl grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
             {personas.map((p, index) => (
               <button
@@ -481,6 +491,7 @@ export function JournalApp({
               </button>
             ))}
           </div>
+          ) : null}
         </div>
 
         {(showPricing || systemNotice === LIMIT_REACHED_MESSAGE) && (
@@ -496,6 +507,7 @@ export function JournalApp({
           {chatTransport ? (
             <JournalChatSession
               key={`${chatIdProp ?? chatId}-${chatSessionKey}`}
+              chatId={chatIdProp ?? chatId}
               transport={chatTransport}
               chatRef={chatApiRef}
               initialMessages={chatIdProp ? initialMessages : []}
@@ -571,6 +583,11 @@ export function JournalApp({
                         </div>
                       </div>
                     )}
+                    {messages.length === 0 && isExistingChat ? (
+                      <p className="text-center text-sm text-zinc-500">
+                        This reflection has no saved messages yet.
+                      </p>
+                    ) : null}
                     {messages.map((m) => (
                       <div
                         key={m.id}

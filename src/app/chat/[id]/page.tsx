@@ -3,7 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { redirect } from 'next/navigation';
 import { JournalApp } from '@/components/JournalApp';
 import { getChatForUser, getChatsForUser } from '@/lib/chats';
-import { getMessagesForChat } from '@/lib/chat-messages';
+import { buildFallbackMessagesFromChatContent, getMessagesForChat } from '@/lib/chat-messages';
 import { getMoodDataForCurrentUser } from '@/lib/mood';
 
 type ChatPageProps = {
@@ -18,7 +18,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
     redirect('/sign-in');
   }
 
-  const [chat, initialMessages, initialMoodData, historyItems] = await Promise.all([
+  const [chat, loadedMessages, initialMoodData, historyItems] = await Promise.all([
     getChatForUser(id, userId),
     getMessagesForChat(id, userId),
     getMoodDataForCurrentUser().catch(() => []),
@@ -28,6 +28,11 @@ export default async function ChatPage({ params }: ChatPageProps) {
   if (!chat) {
     redirect('/');
   }
+
+  const initialMessages =
+    loadedMessages.length > 0
+      ? loadedMessages
+      : buildFallbackMessagesFromChatContent(chat.title, chat.content);
 
   return (
     <Suspense fallback={<div className="min-h-screen bg-zinc-950" />}>

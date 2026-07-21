@@ -13,10 +13,10 @@ type ChatListRow = {
 
 export async function getChatsForUser(
   clerkUserId: string,
-): Promise<ChatHistoryItem[]> {
+): Promise<ChatHistoryItem[] | null> {
   const supabase = tryCreateServerSupabaseClient();
   if (!supabase) {
-    return [];
+    return null;
   }
 
   const { data, error } = await supabase
@@ -27,7 +27,7 @@ export async function getChatsForUser(
 
   if (error) {
     console.error('Error fetching chats:', error);
-    return [];
+    return null;
   }
 
   return (data as ChatListRow[]).map((chat) => ({

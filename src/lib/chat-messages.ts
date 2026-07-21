@@ -70,10 +70,10 @@ export async function ensureChatForUser(params: {
   chatId: string;
   userId: string;
   title?: string;
-}): Promise<boolean> {
+}): Promise<{ ok: true } | { ok: false; error: string }> {
   const supabase = tryCreateServerSupabaseClient();
   if (!supabase) {
-    return false;
+    return { ok: false, error: 'Supabase is not configured.' };
   }
 
   const { data: existing, error: lookupError } = await supabase
@@ -85,11 +85,11 @@ export async function ensureChatForUser(params: {
 
   if (lookupError) {
     console.error('Error looking up chat:', lookupError);
-    return false;
+    return { ok: false, error: lookupError.message };
   }
 
   if (existing) {
-    return true;
+    return { ok: true };
   }
 
   const { error } = await supabase.from('chats').insert([
@@ -103,10 +103,10 @@ export async function ensureChatForUser(params: {
 
   if (error) {
     console.error('Error creating chat:', error);
-    return false;
+    return { ok: false, error: error.message };
   }
 
-  return true;
+  return { ok: true };
 }
 
 export async function saveChatMessage(params: {
@@ -114,15 +114,15 @@ export async function saveChatMessage(params: {
   chatId: string;
   role: 'user' | 'assistant';
   content: string;
-}): Promise<string | null> {
+}): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   const supabase = tryCreateServerSupabaseClient();
   if (!supabase) {
-    return null;
+    return { ok: false, error: 'Supabase is not configured.' };
   }
 
   const trimmed = params.content.trim();
   if (!trimmed) {
-    return null;
+    return { ok: false, error: 'Message content is empty.' };
   }
 
   const messageId =
@@ -140,10 +140,10 @@ export async function saveChatMessage(params: {
 
   if (error) {
     console.error('Error saving message:', error);
-    return null;
+    return { ok: false, error: error.message };
   }
 
-  return messageId;
+  return { ok: true, id: messageId };
 }
 
 export async function syncChatPreview(

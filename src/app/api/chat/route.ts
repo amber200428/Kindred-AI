@@ -201,24 +201,39 @@ export async function POST(req: Request) {
     const latestUserMessage = getLatestPersistableUserMessage(messages);
 
     if (latestUserMessage) {
-      try {
-        const title =
-          latestUserMessage.text.split('\n')[0].slice(0, 80) || UI.NEW_ENTRY;
-        await ensureChatForUser({
-          chatId,
-          userId,
-          title,
-        });
-        await saveChatMessage({
-          id: latestUserMessage.id,
-          chatId,
-          role: 'user',
-          content: latestUserMessage.text,
-        });
-        await syncChatPreview(chatId, userId);
-      } catch (error) {
-        console.error('--- USER MESSAGE SAVE ERROR ---', error);
+      const title =
+        latestUserMessage.text.split('\n')[0].slice(0, 80) || UI.NEW_ENTRY;
+
+      const chatSaved = await ensureChatForUser({
+        chatId,
+        userId,
+        title,
+      });
+
+      if (!chatSaved.ok) {
+        console.error('--- USER CHAT SAVE ERROR ---', chatSaved.error);
+        return NextResponse.json(
+          { error: UI.HISTORY_SAVE_UNAVAILABLE, details: chatSaved.error },
+          { status: 503 },
+        );
       }
+
+      const messageSaved = await saveChatMessage({
+        id: latestUserMessage.id,
+        chatId,
+        role: 'user',
+        content: latestUserMessage.text,
+      });
+
+      if (!messageSaved.ok) {
+        console.error('--- USER MESSAGE SAVE ERROR ---', messageSaved.error);
+        return NextResponse.json(
+          { error: UI.HISTORY_SAVE_UNAVAILABLE, details: messageSaved.error },
+          { status: 503 },
+        );
+      }
+
+      await syncChatPreview(chatId, userId);
     }
 
     if (userInput.trim()) {
@@ -288,12 +303,20 @@ Action: If context exists, gently reference the past entry — for example, "I r
       onFinish: async ({ text }) => {
         try {
           if (text.trim()) {
-            await saveChatMessage({
+            const assistantSaved = await saveChatMessage({
               chatId,
               role: 'assistant',
               content: text,
             });
-            await syncChatPreview(chatId, userId);
+
+            if (!assistantSaved.ok) {
+              console.error(
+                '--- ASSISTANT MESSAGE SAVE ERROR ---',
+                assistantSaved.error,
+              );
+            } else {
+              await syncChatPreview(chatId, userId);
+            }
           }
 
           await db.user.update({

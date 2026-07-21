@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getGoogleApiKey, getGoogleChatModelIds } from '@/lib/google-ai';
-import { getSupabaseEnvStatus } from '@/lib/supabase/env';
+import { getSupabaseEnvStatus, getSupabaseUrl } from '@/lib/supabase/env';
 import { checkSupabaseChatTables } from '@/lib/supabase/tables';
 
 export const dynamic = 'force-dynamic';
@@ -18,9 +18,12 @@ export async function GET() {
     supabase: supabaseEnv.ready,
     supabaseEnv,
     supabaseTables,
-    supabaseProject: process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(
-      'https://',
-      '',
-    ),
+    supabaseProject: supabaseEnv.urlValid
+      ? getSupabaseUrl()?.replace(/^https:\/\//, '')
+      : null,
+    supabaseMisconfigured:
+      supabaseEnv.url && !supabaseEnv.urlValid
+        ? 'NEXT_PUBLIC_SUPABASE_URL must be your project URL (https://YOUR-PROJECT.supabase.co), not an API key.'
+        : null,
   });
 }

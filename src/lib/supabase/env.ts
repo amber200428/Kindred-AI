@@ -1,5 +1,6 @@
 export type SupabaseEnvStatus = {
   url: boolean;
+  urlValid: boolean;
   serviceRoleKey: boolean;
   anonKey: boolean;
   /** Server can read/write chat history when URL + at least one key are set. */
@@ -9,6 +10,19 @@ export type SupabaseEnvStatus = {
 function trim(value: string | undefined): string | undefined {
   const next = value?.trim();
   return next || undefined;
+}
+
+export function isValidSupabaseUrl(url: string | undefined): boolean {
+  if (!url) {
+    return false;
+  }
+
+  try {
+    const parsed = new URL(url.includes('://') ? url : `https://${url}`);
+    return parsed.hostname.endsWith('.supabase.co');
+  } catch {
+    return false;
+  }
 }
 
 export function getSupabaseUrl(): string | undefined {
@@ -35,14 +49,17 @@ export function getSupabaseServerKey(): string | undefined {
 }
 
 export function getSupabaseEnvStatus(): SupabaseEnvStatus {
-  const url = Boolean(getSupabaseUrl());
+  const supabaseUrl = getSupabaseUrl();
+  const url = Boolean(supabaseUrl);
+  const urlValid = isValidSupabaseUrl(supabaseUrl);
   const serviceRoleKey = Boolean(getSupabaseServiceRoleKey());
   const anonKey = Boolean(getSupabaseAnonKey());
 
   return {
     url,
+    urlValid,
     serviceRoleKey,
     anonKey,
-    ready: url && (serviceRoleKey || anonKey),
+    ready: urlValid && (serviceRoleKey || anonKey),
   };
 }

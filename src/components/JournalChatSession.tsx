@@ -14,6 +14,7 @@ export type JournalChatApi = {
 };
 
 type JournalChatSessionProps = {
+  chatId: string;
   transport: ChatTransport<UIMessage>;
   chatRef: MutableRefObject<JournalChatApi | null>;
   initialMessages?: UIMessage[];
@@ -22,6 +23,7 @@ type JournalChatSessionProps = {
 };
 
 export function JournalChatSession({
+  chatId,
   transport,
   chatRef,
   initialMessages = [],
@@ -33,6 +35,10 @@ export function JournalChatSession({
     messages: initialMessages,
     onError,
   });
+
+  useEffect(() => {
+    setMessages(initialMessages);
+  }, [chatId, initialMessages, setMessages]);
 
   useEffect(() => {
     chatRef.current = { messages, sendMessage, setMessages, status };

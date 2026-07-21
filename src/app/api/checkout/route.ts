@@ -2,6 +2,8 @@ export const dynamic = 'force-dynamic';
 
 import { auth, currentUser } from '@clerk/nextjs/server';
 import { NextResponse } from 'next/server';
+import Stripe from 'stripe';
+import { db } from '@/lib/db';
 import {
   PLAN_IDS,
   getPriceIdForPlan,
@@ -11,6 +13,60 @@ import {
 import { getAppUrl, getStripe } from '@/lib/stripe';
 import { UI } from '@/lib/labels';
 import { getOrCreateUser } from '@/lib/user';
+
+type CheckoutUser = {
+  id: string;
+  stripeCustomerId: string | null;
+  email: string;
+};
+
+function resolveCheckoutEmail(
+  user: CheckoutUser,
+  clerkEmail?: string | null,
+): string | undefined {
+  if (clerkEmail) {
+    return clerkEmail;
+  }
+
+  if (user.email.endsWith('@users.clerk.local')) {
+    return undefined;
+  }
+
+  return user.email;
+}
+
+async function resolveCheckoutCustomer(
+  user: CheckoutUser,
+  clerkEmail?: string | null,
+): Promise<{ customer: string } | { customer_email: string }> {
+  if (user.stripeCustomerId) {
+    try {
+      await getStripe().customers.retrieve(user.stripeCustomerId);
+      return { customer: user.stripeCustomerId };
+    } catch (error) {
+      if (
+        error instanceof Stripe.errors.StripeError &&
+        error.code === 'resource_missing'
+      ) {
+        await db.user.update({
+          where: { id: user.id },
+          data: { stripeCustomerId: null },
+        });
+      } else {
+        throw error;
+      }
+    }
+  }
+
+  const email = resolveCheckoutEmail(user, clerkEmail);
+  if (!email) {
+    throw new Error(
+      'Add an email address to your account before subscribing.',
+    );
+  }
+
+  return { customer_email: email };
+}
 
 function resolveCheckoutPrice(body: { priceId?: string; plan?: string }) {
   const allowedPriceIds = new Map<string, PlanId>(
@@ -68,6 +124,8 @@ export async function POST(req: Request) {
     const appUrl = getAppUrl();
     const isLifetime = plan === 'lifetime';
 
+    const customerParams = await resolveCheckoutCustomer(user, email);
+
     const session = await getStripe().checkout.sessions.create({
       mode: isLifetime ? 'payment' : 'subscription',
       line_items: [{ price: priceId, quantity: 1 }],
@@ -85,11 +143,7 @@ export async function POST(req: Request) {
               metadata: { clerkId: userId, plan },
             },
           }),
-      ...(user.stripeCustomerId
-        ? { customer: user.stripeCustomerId }
-        : {
-            customer_email: clerkUser?.emailAddresses[0]?.emailAddress,
-          }),
+      ...customerParams,
     });
 
     return NextResponse.json({ url: session.url });
@@ -108,6 +162,22 @@ export async function POST(req: Request) {
             'Database is temporarily unavailable. Wait a few seconds and try again.',
         },
         { status: 503 },
+      );
+    }
+
+    if (message.includes('email address to your account')) {
+      return NextResponse.json({ error: message }, { status: 400 });
+    }
+
+    if (error instanceof Stripe.errors.StripeError) {
+      console.error('Stripe code:', error.code, 'type:', error.type);
+      return NextResponse.json(
+        {
+          error:
+            error.message ||
+            'Payment provider error. Please try again in a moment.',
+        },
+        { status: 502 },
       );
     }
 

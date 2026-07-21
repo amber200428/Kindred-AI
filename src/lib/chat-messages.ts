@@ -58,12 +58,54 @@ export async function getMessagesForChat(
     .eq('chat_id', chatId)
     .order('created_at', { ascending: true });
 
+  if (error?.code === '42703') {
+    const fallback = await supabase
+      .from('messages')
+      .select('id, role, content')
+      .eq('chat_id', chatId);
+
+    if (fallback.error) {
+      console.error('Error fetching messages:', fallback.error);
+      return [];
+    }
+
+    return dbMessagesToUIMessages((fallback.data ?? []) as MessageRow[]);
+  }
+
   if (error) {
     console.error('Error fetching messages:', error);
     return [];
   }
 
   return dbMessagesToUIMessages((data ?? []) as MessageRow[]);
+}
+
+export function buildFallbackMessagesFromChatContent(
+  title: string,
+  content: string | null | undefined,
+): UIMessage[] {
+  const trimmedContent = content?.trim();
+  if (!trimmedContent) {
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) {
+      return [];
+    }
+
+    return [
+      {
+        id: generateId(),
+        role: 'user',
+        parts: [{ type: 'text', text: trimmedTitle }],
+      },
+    ];
+  }
+
+  const segments = trimmedContent.split(/\n\n+/).filter(Boolean);
+  return segments.map((text, index) => ({
+    id: generateId(),
+    role: (index % 2 === 0 ? 'user' : 'assistant') as 'user' | 'assistant',
+    parts: [{ type: 'text' as const, text }],
+  }));
 }
 
 export async function ensureChatForUser(params: {
@@ -178,7 +220,7 @@ export async function syncChatPreview(
 
   const { error: updateError } = await supabase
     .from('chats')
-    .update({ title, content, updated_at: new Date().toISOString() })
+    .update({ title, content })
     .eq('id', chatId)
     .eq('user_id', clerkUserId);
 

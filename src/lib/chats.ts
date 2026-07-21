@@ -25,6 +25,25 @@ export async function getChatsForUser(
     .eq('user_id', clerkUserId)
     .order('updated_at', { ascending: false });
 
+  if (error?.code === '42703') {
+    const fallback = await supabase
+      .from('chats')
+      .select('id, title, content')
+      .eq('user_id', clerkUserId)
+      .order('created_at', { ascending: false });
+
+    if (fallback.error) {
+      console.error('Error fetching chats:', fallback.error);
+      return null;
+    }
+
+    return (fallback.data as ChatListRow[]).map((chat) => ({
+      id: chat.id,
+      label: chat.title,
+      content: chat.content ?? undefined,
+    }));
+  }
+
   if (error) {
     console.error('Error fetching chats:', error);
     return null;

@@ -46,7 +46,13 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased bg-zinc-950 text-slate-50`}
     >
         <body className="flex min-h-full flex-col bg-zinc-950 text-slate-50">
-        <ClerkProvider appearance={{ theme: dark }}>
+        <ClerkProvider
+          appearance={{ theme: dark }}
+          signInUrl="/sign-in"
+          signUpUrl="/sign-up"
+          signInFallbackRedirectUrl="/"
+          signUpFallbackRedirectUrl="/"
+        >
           <CryptoPolyfill />
           <RevenueCatInit />
           <AuthHeader />

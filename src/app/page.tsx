@@ -5,6 +5,8 @@ import { getChatsForUser } from '@/lib/chats';
 import { getMoodDataForCurrentUser } from '@/lib/mood';
 import type { ChatHistoryItem } from '@/lib/types/chats';
 
+export const dynamic = 'force-dynamic';
+
 export default async function Page() {
   const { userId } = await auth();
 

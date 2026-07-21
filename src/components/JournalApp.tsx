@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { SignInButton, SignUpButton } from '@clerk/nextjs';
+import Link from 'next/link';
 import type { ChatTransport, UIMessage } from 'ai';
 import { createChatDraft } from '@/app/actions/chat';
 import { PricingPlans } from '@/components/PricingPlans';
@@ -16,6 +16,7 @@ import {
 import type { ChatHistoryItem } from '@/lib/types/chats';
 import { type MoodDataPoint } from '@/lib/types/mood';
 import { generateId } from '@/lib/generate-id';
+import { formatUserFacingApiError } from '@/lib/api-errors';
 import { UI } from '@/lib/labels';
 
 const RATE_LIMIT_MESSAGE =
@@ -94,7 +95,13 @@ export function JournalApp({
       if (res.ok) {
         setHistoryItems(json.data ?? []);
       } else if (res.status === 503) {
-        setSystemNotice(json.error ?? UI.HISTORY_SAVE_UNAVAILABLE);
+        setSystemNotice(
+          formatUserFacingApiError({
+            error: json.error,
+            details: json.details,
+            fallback: UI.HISTORY_SAVE_UNAVAILABLE,
+          }),
+        );
       }
     } catch {
       // History refresh is best-effort.
@@ -116,6 +123,38 @@ export function JournalApp({
       setSystemNotice(null);
     }
   }, [chatIdProp]);
+
+  useEffect(() => {
+    if (!chatIdProp) {
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadSavedMessages() {
+      try {
+        const res = await fetch(`/api/chats/${chatIdProp}/messages`, {
+          credentials: 'include',
+        });
+        const json = (await res.json()) as { messages?: UIMessage[] };
+        if (cancelled || !res.ok || !json.messages?.length) {
+          return;
+        }
+
+        chatApiRef.current?.setMessages(json.messages);
+      } catch {
+        // Best-effort reload for saved reflections.
+      }
+    }
+
+    if (initialMessages.length === 0) {
+      void loadSavedMessages();
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [chatIdProp, initialMessages]);
 
   useEffect(() => {
     if (searchParams.get('upgraded') === 'true') {
@@ -229,7 +268,11 @@ export function JournalApp({
                 .clone()
                 .json()
                 .catch(() => ({}))) as { error?: string; details?: string };
-              const message = data.error ?? data.details ?? UI.CHAT_UNAVAILABLE;
+              const message = formatUserFacingApiError({
+                error: data.error,
+                details: data.details,
+                fallback: UI.CHAT_UNAVAILABLE,
+              });
               setSystemNotice(message);
               throw new Error(message);
             }
@@ -340,6 +383,7 @@ export function JournalApp({
 
   const handleSelectHistory = (id: string) => {
     router.push(`/chat/${id}`);
+    router.refresh();
   };
 
   const handleNewChat = useCallback(async () => {
@@ -384,8 +428,8 @@ export function JournalApp({
       setInput('');
       await sendMessage({ text });
 
-      if (!chatIdProp && typeof window !== 'undefined') {
-        window.history.replaceState(null, '', `/chat/${chatIdRef.current}`);
+      if (!chatIdProp) {
+        router.replace(`/chat/${chatIdRef.current}`);
       }
 
       await loadHistory();
@@ -401,6 +445,8 @@ export function JournalApp({
     e.preventDefault();
     await handleSave();
   };
+
+  const isExistingChat = Boolean(chatIdProp);
 
   return (
     <ChatLayout
@@ -431,11 +477,18 @@ export function JournalApp({
       }
     >
       <div className="mx-auto w-full max-w-4xl p-6 font-sans">
-        <div className="mb-12">
+        <div className={isExistingChat ? 'mb-8' : 'mb-12'}>
           <div className="mb-6 flex items-center justify-between gap-4">
-            <h1 className="text-3xl font-serif text-slate-50 text-center flex-1">
-              {chatTitle ?? 'Choose your guide today'}
-            </h1>
+            <div className="flex-1 text-center">
+              <h1 className="text-3xl font-serif text-slate-50">
+                {isExistingChat ? 'Your reflection' : 'Choose your guide today'}
+              </h1>
+              {isExistingChat && chatTitle ? (
+                <p className="mx-auto mt-3 max-w-2xl text-sm leading-relaxed text-zinc-400">
+                  {chatTitle}
+                </p>
+              ) : null}
+            </div>
             <button
               type="button"
               onClick={() => setShowPricing((open) => !open)}
@@ -444,6 +497,7 @@ export function JournalApp({
               {showPricing ? 'Hide plans' : 'View plans'}
             </button>
           </div>
+          {!isExistingChat ? (
           <div className="mx-auto grid max-w-3xl grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
             {personas.map((p, index) => (
               <button
@@ -470,6 +524,7 @@ export function JournalApp({
               </button>
             ))}
           </div>
+          ) : null}
         </div>
 
         {(showPricing || systemNotice === LIMIT_REACHED_MESSAGE) && (
@@ -485,6 +540,7 @@ export function JournalApp({
           {chatTransport ? (
             <JournalChatSession
               key={`${chatIdProp ?? chatId}-${chatSessionKey}`}
+              chatId={chatIdProp ?? chatId}
               transport={chatTransport}
               chatRef={chatApiRef}
               initialMessages={chatIdProp ? initialMessages : []}
@@ -530,22 +586,18 @@ export function JournalApp({
                           </p>
                           {systemNotice === UI.AUTH_REQUIRED_TO_START && (
                             <div className="mt-4 flex flex-wrap justify-center gap-3">
-                              <SignUpButton mode="modal">
-                                <button
-                                  type="button"
-                                  className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-zinc-950 transition-colors hover:bg-white"
-                                >
-                                  Create free account
-                                </button>
-                              </SignUpButton>
-                              <SignInButton mode="modal">
-                                <button
-                                  type="button"
-                                  className="rounded-lg border border-amber-700/80 bg-transparent px-4 py-2 text-sm font-medium text-amber-100 transition-colors hover:bg-amber-900/40"
-                                >
-                                  Sign in
-                                </button>
-                              </SignInButton>
+                              <Link
+                                href="/sign-up"
+                                className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-zinc-950 transition-colors hover:bg-white"
+                              >
+                                Create free account
+                              </Link>
+                              <Link
+                                href="/sign-in"
+                                className="rounded-lg border border-amber-700/80 bg-transparent px-4 py-2 text-sm font-medium text-amber-100 transition-colors hover:bg-amber-900/40"
+                              >
+                                Sign in
+                              </Link>
                             </div>
                           )}
                           {systemNotice === LIMIT_REACHED_MESSAGE && !showPricing && (
@@ -560,6 +612,11 @@ export function JournalApp({
                         </div>
                       </div>
                     )}
+                    {messages.length === 0 && isExistingChat ? (
+                      <p className="text-center text-sm text-zinc-500">
+                        This reflection has no saved messages yet.
+                      </p>
+                    ) : null}
                     {messages.map((m) => (
                       <div
                         key={m.id}

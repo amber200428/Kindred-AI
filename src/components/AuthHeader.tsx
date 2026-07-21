@@ -1,11 +1,17 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Show, UserButton, useAuth } from '@clerk/nextjs';
 import { UI } from '@/lib/labels';
 
 export function AuthHeader() {
+  const pathname = usePathname();
   const { isLoaded } = useAuth();
+
+  if (pathname.startsWith('/sign-in') || pathname.startsWith('/sign-up')) {
+    return null;
+  }
 
   return (
     <header className="relative z-50 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur-sm">

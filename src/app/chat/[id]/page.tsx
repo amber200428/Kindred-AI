@@ -22,7 +22,7 @@ export default async function ChatPage({ params }: ChatPageProps) {
     getChatForUser(id, userId),
     getMessagesForChat(id, userId),
     getMoodDataForCurrentUser().catch(() => []),
-    getChatsForUser(userId),
+    getChatsForUser(userId).then((items) => items ?? []),
   ]);
 
   if (!chat) {

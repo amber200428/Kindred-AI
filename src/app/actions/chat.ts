@@ -124,8 +124,8 @@ export async function createChatDraft(chatId: string): Promise<SaveReflectionRes
     title: UI.NEW_ENTRY,
   });
 
-  if (!saved) {
-    return { success: false, error: UI.HISTORY_SAVE_UNAVAILABLE };
+  if (!saved.ok) {
+    return { success: false, error: saved.error || UI.HISTORY_SAVE_UNAVAILABLE };
   }
 
   return { success: true, id: chatId };

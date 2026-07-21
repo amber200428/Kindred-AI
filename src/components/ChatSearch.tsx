@@ -107,7 +107,7 @@ export function ChatSearch({ chats, onSelect }: ChatSearchProps) {
       </div>
 
       <ul className="space-y-1">
-        {filteredChats.length === 0 ? (
+        {filteredChats.length === 0 && query.trim() ? (
           <li className="rounded-md p-2 text-sm text-zinc-500">
             No reflections match &ldquo;{query.trim()}&rdquo;
           </li>

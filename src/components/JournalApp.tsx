@@ -93,6 +93,8 @@ export function JournalApp({
       const json = await res.json();
       if (res.ok) {
         setHistoryItems(json.data ?? []);
+      } else if (res.status === 503) {
+        setSystemNotice(json.error ?? UI.HISTORY_SAVE_UNAVAILABLE);
       }
     } catch {
       // History refresh is best-effort.
@@ -233,6 +235,7 @@ export function JournalApp({
             }
 
             loadMoodData();
+            void loadHistory();
             return res;
           },
         }),
@@ -244,7 +247,7 @@ export function JournalApp({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loadHistory]);
 
   const personas = [
     {
@@ -339,24 +342,30 @@ export function JournalApp({
     router.push(`/chat/${id}`);
   };
 
-  const handleNewChat = useCallback(() => {
-    chatApiRef.current?.setMessages([]);
-
+  const handleNewChat = useCallback(async () => {
     const nextChatId = generateId();
+
+    const draft = await createChatDraft(nextChatId);
+    if (!draft.success) {
+      setSystemNotice(draft.error);
+      return;
+    }
+
+    chatApiRef.current?.setMessages([]);
     setChatId(nextChatId);
     chatIdRef.current = nextChatId;
     setInput('');
     setSystemNotice(null);
     setChatSessionKey((key) => key + 1);
 
-    void createChatDraft(nextChatId).then((response) => {
-      if (response.success) {
-        void loadHistory();
-      }
-    });
+    await loadHistory();
 
-    router.push('/');
-  }, [router, loadHistory]);
+    if (chatIdProp) {
+      router.push('/');
+    } else if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', '/');
+    }
+  }, [router, loadHistory, chatIdProp]);
 
   const handleSave = async () => {
     const text = input.trim();

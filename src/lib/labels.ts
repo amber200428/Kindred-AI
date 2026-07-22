@@ -5,6 +5,8 @@ export const UI = {
   NEW_ENTRY: 'Start a new thought',
   MOOD_LOG: 'Check in with yourself',
   SETTINGS: 'Configure your sanctuary',
+  MANAGE_BILLING: 'Manage Billing',
+  ACCOUNT_SETTINGS: 'Account settings',
   AUTH_REQUIRED_FOR_CHECKOUT:
     'Please create an account or sign in to subscribe.',
   AUTH_REQUIRED_TO_START:
@@ -14,3 +16,6 @@ export const UI = {
   CHAT_UNAVAILABLE:
     'Your guide could not respond right now. Please try again in a moment.',
 };
+
+export const STRIPE_CUSTOMER_PORTAL_URL =
+  'https://billing.stripe.com/p/login/14A5kF3GW1bDezs6L8as00';

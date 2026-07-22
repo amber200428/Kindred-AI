@@ -18,4 +18,4 @@ export const UI = {
 };
 
 export const STRIPE_CUSTOMER_PORTAL_URL =
-  'https://billing.stripe.com/p/login/14A5kF3GW1bDezs6L8as00';
+  'https://billing.stripe.com/p/login/14A5kF3GW1bDezs6gL8so00';

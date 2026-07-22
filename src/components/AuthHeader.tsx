@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Show, UserButton, useAuth } from '@clerk/nextjs';
-import { UI } from '@/lib/labels';
+import { BillingIcon, ManageBillingPage } from '@/components/ManageBillingPage';
+import { STRIPE_CUSTOMER_PORTAL_URL, UI } from '@/lib/labels';
 
 export function AuthHeader() {
   const pathname = usePathname();
@@ -57,7 +58,26 @@ export function AuthHeader() {
                         avatarBox: 'h-9 w-9',
                       },
                     }}
-                  />
+                  >
+                    <UserButton.UserProfilePage
+                      label={UI.MANAGE_BILLING}
+                      url="billing"
+                      labelIcon={<BillingIcon />}
+                    >
+                      <ManageBillingPage />
+                    </UserButton.UserProfilePage>
+                    <UserButton.UserProfilePage label="account" />
+                    <UserButton.UserProfilePage label="security" />
+                    <UserButton.MenuItems>
+                      <UserButton.Link
+                        label={UI.MANAGE_BILLING}
+                        labelIcon={<BillingIcon />}
+                        href={STRIPE_CUSTOMER_PORTAL_URL}
+                      />
+                      <UserButton.Action label="manageAccount" />
+                      <UserButton.Action label="signOut" />
+                    </UserButton.MenuItems>
+                  </UserButton>
                 </span>
               </Show>
             </>

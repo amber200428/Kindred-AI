@@ -36,11 +36,14 @@ export function Sidebar({ onNewChat }: SidebarProps) {
 
       {settingsOpen && (
         <div className="flex flex-col gap-2 rounded-xl border border-zinc-800 bg-zinc-950/80 p-3">
+          <p className="px-1 text-xs text-zinc-500">
+            Billing opens Stripe in a new tab. Account opens your profile.
+          </p>
           <a
             href={STRIPE_CUSTOMER_PORTAL_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className={`${navButtonClass} text-center`}
+            className={`${navButtonClass} border-slate-500/60 bg-slate-100 text-center text-zinc-950 hover:bg-white hover:text-zinc-950`}
           >
             {UI.MANAGE_BILLING}
           </a>
